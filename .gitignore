@@ -1,0 +1,18 @@
+# Maven
+target/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+
+# Java
+*.class
+
+# Logs
+*.log
+
+# Local application configuration
+user-service/src/main/resources/application.properties
+user-service/src/main/resources/application-docker.properties
+recipe-service/src/main/resources/application.yaml
+recipe-service/src/main/resources/application-docker.yml
