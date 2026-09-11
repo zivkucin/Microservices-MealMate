@@ -16,3 +16,5 @@ user-service/src/main/resources/application.properties
 user-service/src/main/resources/application-docker.properties
 recipe-service/src/main/resources/application.yaml
 recipe-service/src/main/resources/application-docker.yml
+meal-service/src/main/resources/application.properties
+meal-service/src/main/resources/application-docker.properties
