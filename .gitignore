@@ -20,3 +20,5 @@ meal-service/src/main/resources/application.properties
 meal-service/src/main/resources/application-docker.properties
 shopping-list-service/src/main/resources/application.properties
 shopping-list-service/src/main/resources/application-docker.properties
+review-service/src/main/resources/application.properties
+review-service/src/main/resources/application-docker.properties
