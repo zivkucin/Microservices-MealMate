@@ -1,15 +1,18 @@
 package com.mealmate.reviewservice.service;
 
+import com.mealmate.reviewservice.client.RecipeClient;
 import com.mealmate.reviewservice.dto.CreateReviewRequest;
+import com.mealmate.reviewservice.dto.RecipeResponse;
 import com.mealmate.reviewservice.dto.ReviewResponse;
+import com.mealmate.reviewservice.dto.ReviewSummaryResponse;
 import com.mealmate.reviewservice.dto.UpdateReviewRequest;
-import com.mealmate.reviewservice.exception.ReviewAlreadyExistsException;
 import com.mealmate.reviewservice.entity.Review;
+import com.mealmate.reviewservice.exception.OwnRecipeReviewException;
+import com.mealmate.reviewservice.exception.ReviewAlreadyExistsException;
 import com.mealmate.reviewservice.exception.ReviewNotFoundException;
 import com.mealmate.reviewservice.mapper.ReviewMapper;
 import com.mealmate.reviewservice.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
-import com.mealmate.reviewservice.dto.ReviewSummaryResponse;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,12 +23,24 @@ public class ReviewService {
 
     private final ReviewRepository reviewRepository;
     private final ReviewMapper reviewMapper;
+    private final RecipeClient recipeClient;
 
     public ReviewResponse createReview(
             Long recipeId,
             CreateReviewRequest request
     ) {
 
+        // 1. Dohvati recept iz Recipe Service-a
+        RecipeResponse recipe = recipeClient.getRecipeById(recipeId);
+
+        // 2. Korisnik ne može da ocenjuje svoj recept
+        if (recipe.userId().equals(request.userId())) {
+            throw new OwnRecipeReviewException(
+                    "User cannot review their own recipe"
+            );
+        }
+
+        // 3. Provera da korisnik već nije ocenio ovaj recept
         if (reviewRepository.existsByUserIdAndRecipeId(
                 request.userId(),
                 recipeId
@@ -35,6 +50,7 @@ public class ReviewService {
             );
         }
 
+        // 4. Kreiranje review-a
         Review review = reviewMapper.toEntity(request);
         review.setRecipeId(recipeId);
 
@@ -124,6 +140,7 @@ public class ReviewService {
 
         return reviewMapper.toResponse(updatedReview);
     }
+
     public void deleteReview(
             Long reviewId,
             Long userId
@@ -138,4 +155,3 @@ public class ReviewService {
         reviewRepository.delete(review);
     }
 }
-

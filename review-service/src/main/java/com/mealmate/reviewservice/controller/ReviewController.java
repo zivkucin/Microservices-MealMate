@@ -1,9 +1,7 @@
 package com.mealmate.reviewservice.controller;
 
-import com.mealmate.reviewservice.dto.CreateReviewRequest;
-import com.mealmate.reviewservice.dto.ReviewResponse;
-import com.mealmate.reviewservice.dto.ReviewSummaryResponse;
-import com.mealmate.reviewservice.dto.UpdateReviewRequest;
+import com.mealmate.reviewservice.client.RecipeClient;
+import com.mealmate.reviewservice.dto.*;
 import com.mealmate.reviewservice.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -29,6 +27,7 @@ import java.util.List;
 public class ReviewController {
 
     private final ReviewService reviewService;
+    private final RecipeClient recipeClient;
 
     @Operation(
             summary = "Get review by ID",
@@ -246,4 +245,6 @@ public class ReviewController {
     ) {
         reviewService.deleteReview(reviewId, userId);
     }
+
+   
 }

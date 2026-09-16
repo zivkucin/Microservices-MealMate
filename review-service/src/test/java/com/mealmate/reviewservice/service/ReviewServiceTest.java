@@ -1,12 +1,15 @@
 package com.mealmate.reviewservice.service;
 
+import com.mealmate.reviewservice.client.RecipeClient;
 import com.mealmate.reviewservice.dto.CreateReviewRequest;
+import com.mealmate.reviewservice.dto.RecipeResponse;
 import com.mealmate.reviewservice.dto.ReviewResponse;
 import com.mealmate.reviewservice.dto.ReviewSummaryResponse;
 import com.mealmate.reviewservice.dto.UpdateReviewRequest;
 import com.mealmate.reviewservice.entity.Review;
 import com.mealmate.reviewservice.exception.ReviewAlreadyExistsException;
 import com.mealmate.reviewservice.exception.ReviewNotFoundException;
+import com.mealmate.reviewservice.exception.OwnRecipeReviewException;
 import com.mealmate.reviewservice.mapper.ReviewMapper;
 import com.mealmate.reviewservice.repository.ReviewRepository;
 import org.junit.jupiter.api.Test;
@@ -30,6 +33,9 @@ class ReviewServiceTest {
 
     @Mock
     private ReviewMapper reviewMapper;
+
+    @Mock
+    private RecipeClient recipeClient;
 
     @InjectMocks
     private ReviewService reviewService;
@@ -64,6 +70,16 @@ class ReviewServiceTest {
                         null
                 );
 
+        RecipeResponse recipe =
+                new RecipeResponse(
+                        1L,
+                        "Carbonara",
+                        1L
+                );
+
+        when(recipeClient.getRecipeById(1L))
+                .thenReturn(recipe);
+
         when(reviewRepository.existsByUserIdAndRecipeId(2L, 1L))
                 .thenReturn(false);
 
@@ -89,6 +105,7 @@ class ReviewServiceTest {
         assertEquals(5, result.rating());
         assertEquals("Odlican recept!", result.comment());
 
+        verify(recipeClient).getRecipeById(1L);
         verify(reviewRepository).save(review);
         verify(reviewMapper).toResponse(review);
     }
@@ -105,6 +122,16 @@ class ReviewServiceTest {
                         "Odlican recept!"
                 );
 
+        RecipeResponse recipe =
+                new RecipeResponse(
+                        1L,
+                        "Carbonara",
+                        1L
+                );
+
+        when(recipeClient.getRecipeById(1L))
+                .thenReturn(recipe);
+
         when(reviewRepository.existsByUserIdAndRecipeId(2L, 1L))
                 .thenReturn(true);
 
@@ -115,6 +142,43 @@ class ReviewServiceTest {
                 () -> reviewService.createReview(1L, request)
         );
 
+        verify(recipeClient).getRecipeById(1L);
+        verify(reviewRepository, never())
+                .save(any(Review.class));
+    }
+
+    @Test
+    void shouldThrowExceptionWhenUserReviewsOwnRecipe() {
+
+        // Arrange
+
+        CreateReviewRequest request =
+                new CreateReviewRequest(
+                        1L,
+                        5,
+                        "Moj recept!"
+                );
+
+        RecipeResponse recipe =
+                new RecipeResponse(
+                        1L,
+                        "Carbonara",
+                        1L
+                );
+
+        when(recipeClient.getRecipeById(1L))
+                .thenReturn(recipe);
+
+        // Act & Assert
+
+        assertThrows(
+                OwnRecipeReviewException.class,
+                () -> reviewService.createReview(1L, request)
+        );
+
+        verify(recipeClient).getRecipeById(1L);
+        verify(reviewRepository, never())
+                .existsByUserIdAndRecipeId(anyLong(), anyLong());
         verify(reviewRepository, never())
                 .save(any(Review.class));
     }

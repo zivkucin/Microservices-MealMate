@@ -1,5 +1,7 @@
 package com.mealmate.reviewservice.controller;
 
+import com.mealmate.reviewservice.client.RecipeClient;
+import com.mealmate.reviewservice.dto.RecipeResponse;
 import com.mealmate.reviewservice.entity.Review;
 import com.mealmate.reviewservice.repository.ReviewRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,12 +10,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -37,6 +41,9 @@ class ReviewControllerIntegrationTest {
     @Autowired
     private ReviewRepository reviewRepository;
 
+    @MockitoBean
+    private RecipeClient recipeClient;
+
     @BeforeEach
     void cleanDatabase() {
         reviewRepository.deleteAll();
@@ -49,6 +56,15 @@ class ReviewControllerIntegrationTest {
 
     @Test
     void createReview_shouldReturnOk() throws Exception {
+
+        when(recipeClient.getRecipeById(1L))
+                .thenReturn(
+                        new RecipeResponse(
+                                1L,
+                                "Carbonara",
+                                1L
+                        )
+                );
 
         String requestBody = """
                 {
@@ -99,6 +115,15 @@ class ReviewControllerIntegrationTest {
     @Test
     void createReview_withDuplicateReview_shouldReturnConflict()
             throws Exception {
+
+        when(recipeClient.getRecipeById(1L))
+                .thenReturn(
+                        new RecipeResponse(
+                                1L,
+                                "Carbonara",
+                                1L
+                        )
+                );
 
         Review existingReview = createReview(
                 2L,
@@ -240,7 +265,8 @@ class ReviewControllerIntegrationTest {
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.recipeId").value(1))
-                .andExpect(jsonPath("$.averageRating").value(4.666666666666667))
+                .andExpect(jsonPath("$.averageRating")
+                        .value(4.666666666666667))
                 .andExpect(jsonPath("$.reviewCount").value(3))
                 .andExpect(jsonPath("$.fiveStars").value(2))
                 .andExpect(jsonPath("$.fourStars").value(1))
