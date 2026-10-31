@@ -29,8 +29,7 @@ public class RecipeRequest {
     @NotNull(message = "Category is required")
     private RecipeCategory category;
 
-    @NotNull(message = "User ID is required")
-    private Long userId;
+
 
     private String imageUrl;
 

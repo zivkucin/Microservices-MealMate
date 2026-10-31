@@ -12,6 +12,7 @@ import com.mealmate.reviewservice.exception.ReviewAlreadyExistsException;
 import com.mealmate.reviewservice.exception.ReviewNotFoundException;
 import com.mealmate.reviewservice.mapper.ReviewMapper;
 import com.mealmate.reviewservice.repository.ReviewRepository;
+import com.mealmate.reviewservice.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -30,11 +31,14 @@ public class ReviewService {
             CreateReviewRequest request
     ) {
 
+        // Korisnik se uzima iz JWT tokena
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         // 1. Dohvati recept iz Recipe Service-a
         RecipeResponse recipe = recipeClient.getRecipeById(recipeId);
 
         // 2. Korisnik ne može da ocenjuje svoj recept
-        if (recipe.userId().equals(request.userId())) {
+        if (recipe.userId().equals(currentUserId)) {
             throw new OwnRecipeReviewException(
                     "User cannot review their own recipe"
             );
@@ -42,7 +46,7 @@ public class ReviewService {
 
         // 3. Provera da korisnik već nije ocenio ovaj recept
         if (reviewRepository.existsByUserIdAndRecipeId(
-                request.userId(),
+                currentUserId,
                 recipeId
         )) {
             throw new ReviewAlreadyExistsException(
@@ -52,6 +56,9 @@ public class ReviewService {
 
         // 4. Kreiranje review-a
         Review review = reviewMapper.toEntity(request);
+
+        // userId dolazi iz JWT-a, ne iz requesta
+        review.setUserId(currentUserId);
         review.setRecipeId(recipeId);
 
         Review savedReview = reviewRepository.save(review);
@@ -124,12 +131,13 @@ public class ReviewService {
 
     public ReviewResponse updateReview(
             Long reviewId,
-            Long userId,
             UpdateReviewRequest request
     ) {
 
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         Review review = reviewRepository
-                .findByReviewIdAndUserId(reviewId, userId)
+                .findByReviewIdAndUserId(reviewId, currentUserId)
                 .orElseThrow(() -> new ReviewNotFoundException(
                         "Review not found with id: " + reviewId
                 ));
@@ -141,13 +149,12 @@ public class ReviewService {
         return reviewMapper.toResponse(updatedReview);
     }
 
-    public void deleteReview(
-            Long reviewId,
-            Long userId
-    ) {
+    public void deleteReview(Long reviewId) {
+
+        Long currentUserId = SecurityUtils.getCurrentUserId();
 
         Review review = reviewRepository
-                .findByReviewIdAndUserId(reviewId, userId)
+                .findByReviewIdAndUserId(reviewId, currentUserId)
                 .orElseThrow(() -> new ReviewNotFoundException(
                         "Review not found with id: " + reviewId
                 ));

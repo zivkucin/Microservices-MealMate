@@ -8,9 +8,6 @@ import jakarta.validation.constraints.Size;
 public record CreateReviewRequest(
 
         @NotNull
-        Long userId,
-
-        @NotNull
         @Min(1)
         @Max(5)
         Integer rating,

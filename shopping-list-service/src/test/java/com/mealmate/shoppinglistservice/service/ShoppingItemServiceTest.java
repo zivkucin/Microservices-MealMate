@@ -42,6 +42,7 @@ class ShoppingItemServiceTest {
     @Test
     void shouldAddNewShoppingItem() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
 
         ShoppingList shoppingList = createShoppingList();
@@ -56,7 +57,13 @@ class ShoppingItemServiceTest {
         ShoppingItem item = new ShoppingItem();
 
         ShoppingItemResponse response =
-                createResponse(1L, "Rice", 500.0, MeasurementUnit.GRAM, false);
+                createResponse(
+                        1L,
+                        "Rice",
+                        500.0,
+                        MeasurementUnit.GRAM,
+                        false
+                );
 
         when(shoppingListRepository.findById(shoppingListId))
                 .thenReturn(Optional.of(shoppingList));
@@ -79,6 +86,7 @@ class ShoppingItemServiceTest {
 
         ShoppingItemResponse result =
                 shoppingItemService.addShoppingItem(
+                        userId,
                         shoppingListId,
                         request
                 );
@@ -95,11 +103,18 @@ class ShoppingItemServiceTest {
     @Test
     void shouldMergeGramAndGram() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
+
         ShoppingList shoppingList = createShoppingList();
 
         ShoppingItem existingItem =
-                createItem("Rice", 500.0, MeasurementUnit.GRAM, shoppingList);
+                createItem(
+                        "Rice",
+                        500.0,
+                        MeasurementUnit.GRAM,
+                        shoppingList
+                );
 
         AddShoppingItemRequest request =
                 new AddShoppingItemRequest(
@@ -109,7 +124,13 @@ class ShoppingItemServiceTest {
                 );
 
         ShoppingItemResponse response =
-                createResponse(1L, "Rice", 800.0, MeasurementUnit.GRAM, false);
+                createResponse(
+                        1L,
+                        "Rice",
+                        800.0,
+                        MeasurementUnit.GRAM,
+                        false
+                );
 
         when(shoppingListRepository.findById(shoppingListId))
                 .thenReturn(Optional.of(shoppingList));
@@ -129,6 +150,7 @@ class ShoppingItemServiceTest {
 
         ShoppingItemResponse result =
                 shoppingItemService.addShoppingItem(
+                        userId,
                         shoppingListId,
                         request
                 );
@@ -144,11 +166,18 @@ class ShoppingItemServiceTest {
     @Test
     void shouldMergeGramAndKilogram() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
+
         ShoppingList shoppingList = createShoppingList();
 
         ShoppingItem existingItem =
-                createItem("Rice", 750.0, MeasurementUnit.GRAM, shoppingList);
+                createItem(
+                        "Rice",
+                        750.0,
+                        MeasurementUnit.GRAM,
+                        shoppingList
+                );
 
         AddShoppingItemRequest request =
                 new AddShoppingItemRequest(
@@ -158,7 +187,13 @@ class ShoppingItemServiceTest {
                 );
 
         ShoppingItemResponse response =
-                createResponse(1L, "Rice", 1.75, MeasurementUnit.KILOGRAM, false);
+                createResponse(
+                        1L,
+                        "Rice",
+                        1.75,
+                        MeasurementUnit.KILOGRAM,
+                        false
+                );
 
         when(shoppingListRepository.findById(shoppingListId))
                 .thenReturn(Optional.of(shoppingList));
@@ -178,6 +213,7 @@ class ShoppingItemServiceTest {
 
         ShoppingItemResponse result =
                 shoppingItemService.addShoppingItem(
+                        userId,
                         shoppingListId,
                         request
                 );
@@ -190,11 +226,18 @@ class ShoppingItemServiceTest {
     @Test
     void shouldMergeMilliliterAndLiter() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
+
         ShoppingList shoppingList = createShoppingList();
 
         ShoppingItem existingItem =
-                createItem("Milk", 500.0, MeasurementUnit.MILLILITER, shoppingList);
+                createItem(
+                        "Milk",
+                        500.0,
+                        MeasurementUnit.MILLILITER,
+                        shoppingList
+                );
 
         AddShoppingItemRequest request =
                 new AddShoppingItemRequest(
@@ -204,7 +247,13 @@ class ShoppingItemServiceTest {
                 );
 
         ShoppingItemResponse response =
-                createResponse(1L, "Milk", 1.5, MeasurementUnit.LITER, false);
+                createResponse(
+                        1L,
+                        "Milk",
+                        1.5,
+                        MeasurementUnit.LITER,
+                        false
+                );
 
         when(shoppingListRepository.findById(shoppingListId))
                 .thenReturn(Optional.of(shoppingList));
@@ -224,6 +273,7 @@ class ShoppingItemServiceTest {
 
         ShoppingItemResponse result =
                 shoppingItemService.addShoppingItem(
+                        userId,
                         shoppingListId,
                         request
                 );
@@ -235,11 +285,18 @@ class ShoppingItemServiceTest {
     @Test
     void shouldMergePieces() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
+
         ShoppingList shoppingList = createShoppingList();
 
         ShoppingItem existingItem =
-                createItem("Egg", 4.0, MeasurementUnit.PIECE, shoppingList);
+                createItem(
+                        "Egg",
+                        4.0,
+                        MeasurementUnit.PIECE,
+                        shoppingList
+                );
 
         AddShoppingItemRequest request =
                 new AddShoppingItemRequest(
@@ -249,7 +306,13 @@ class ShoppingItemServiceTest {
                 );
 
         ShoppingItemResponse response =
-                createResponse(1L, "Egg", 10.0, MeasurementUnit.PIECE, false);
+                createResponse(
+                        1L,
+                        "Egg",
+                        10.0,
+                        MeasurementUnit.PIECE,
+                        false
+                );
 
         when(shoppingListRepository.findById(shoppingListId))
                 .thenReturn(Optional.of(shoppingList));
@@ -269,6 +332,7 @@ class ShoppingItemServiceTest {
 
         ShoppingItemResponse result =
                 shoppingItemService.addShoppingItem(
+                        userId,
                         shoppingListId,
                         request
                 );
@@ -280,11 +344,18 @@ class ShoppingItemServiceTest {
     @Test
     void shouldCreateNewItemWhenUnitsAreNotCompatible() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
+
         ShoppingList shoppingList = createShoppingList();
 
         ShoppingItem existingItem =
-                createItem("Brown Rice", 1.75, MeasurementUnit.KILOGRAM, shoppingList);
+                createItem(
+                        "Brown Rice",
+                        1.75,
+                        MeasurementUnit.KILOGRAM,
+                        shoppingList
+                );
 
         AddShoppingItemRequest request =
                 new AddShoppingItemRequest(
@@ -296,7 +367,13 @@ class ShoppingItemServiceTest {
         ShoppingItem newItem = new ShoppingItem();
 
         ShoppingItemResponse response =
-                createResponse(2L, "Brown Rice", 2.0, MeasurementUnit.PIECE, false);
+                createResponse(
+                        2L,
+                        "Brown Rice",
+                        2.0,
+                        MeasurementUnit.PIECE,
+                        false
+                );
 
         when(shoppingListRepository.findById(shoppingListId))
                 .thenReturn(Optional.of(shoppingList));
@@ -319,6 +396,7 @@ class ShoppingItemServiceTest {
 
         ShoppingItemResponse result =
                 shoppingItemService.addShoppingItem(
+                        userId,
                         shoppingListId,
                         request
                 );
@@ -333,6 +411,7 @@ class ShoppingItemServiceTest {
     @Test
     void shouldThrowExceptionWhenShoppingListDoesNotExist() {
 
+        Long userId = 1L;
         Long shoppingListId = 999L;
 
         AddShoppingItemRequest request =
@@ -348,28 +427,63 @@ class ShoppingItemServiceTest {
         assertThrows(
                 ShoppingListNotFoundException.class,
                 () -> shoppingItemService.addShoppingItem(
+                        userId,
                         shoppingListId,
                         request
                 )
         );
 
-        verify(shoppingItemRepository, never())
-                .save(any());
+        verify(shoppingItemRepository, never()).save(any());
+        verify(shoppingItemMapper, never()).toEntity(any());
+    }
 
-        verify(shoppingItemMapper, never())
-                .toEntity(any());
+    @Test
+    void shouldRejectAccessToAnotherUsersShoppingList() {
+
+        Long anotherUserId = 3L;
+        Long shoppingListId = 1L;
+
+        ShoppingList shoppingList = createShoppingList();
+
+        when(shoppingListRepository.findById(shoppingListId))
+                .thenReturn(Optional.of(shoppingList));
+
+        AddShoppingItemRequest request =
+                new AddShoppingItemRequest(
+                        "Rice",
+                        500.0,
+                        MeasurementUnit.GRAM
+                );
+
+        assertThrows(
+                ShoppingListNotFoundException.class,
+                () -> shoppingItemService.addShoppingItem(
+                        anotherUserId,
+                        shoppingListId,
+                        request
+                )
+        );
+
+        verify(shoppingItemRepository, never()).save(any());
+        verify(shoppingItemMapper, never()).toEntity(any());
     }
 
     @Test
     void shouldUpdateShoppingItem() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
         Long shoppingItemId = 1L;
 
         ShoppingList shoppingList = createShoppingList();
 
         ShoppingItem item =
-                createItem("Rice", 500.0, MeasurementUnit.GRAM, shoppingList);
+                createItem(
+                        "Rice",
+                        500.0,
+                        MeasurementUnit.GRAM,
+                        shoppingList
+                );
 
         UpdateShoppingItemRequest request =
                 new UpdateShoppingItemRequest(
@@ -401,6 +515,7 @@ class ShoppingItemServiceTest {
 
         ShoppingItemResponse result =
                 shoppingItemService.updateShoppingItem(
+                        userId,
                         shoppingListId,
                         shoppingItemId,
                         request
@@ -416,6 +531,7 @@ class ShoppingItemServiceTest {
     @Test
     void shouldThrowExceptionWhenUpdatingItemFromDifferentShoppingList() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
         Long otherShoppingListId = 2L;
         Long shoppingItemId = 1L;
@@ -426,7 +542,12 @@ class ShoppingItemServiceTest {
         otherList.setShoppingListId(otherShoppingListId);
 
         ShoppingItem item =
-                createItem("Rice", 500.0, MeasurementUnit.GRAM, otherList);
+                createItem(
+                        "Rice",
+                        500.0,
+                        MeasurementUnit.GRAM,
+                        otherList
+                );
 
         UpdateShoppingItemRequest request =
                 new UpdateShoppingItemRequest(
@@ -444,34 +565,42 @@ class ShoppingItemServiceTest {
         assertThrows(
                 ShoppingItemNotFoundException.class,
                 () -> shoppingItemService.updateShoppingItem(
+                        userId,
                         shoppingListId,
                         shoppingItemId,
                         request
                 )
         );
 
-        verify(shoppingItemMapper, never())
-                .updateEntity(any(), any());
-
-        verify(shoppingItemRepository, never())
-                .save(any());
+        verify(shoppingItemMapper, never()).updateEntity(any(), any());
+        verify(shoppingItemRepository, never()).save(any());
     }
 
     @Test
     void shouldDeleteShoppingItem() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
         Long shoppingItemId = 1L;
 
         ShoppingList shoppingList = createShoppingList();
 
         ShoppingItem item =
-                createItem("Rice", 500.0, MeasurementUnit.GRAM, shoppingList);
+                createItem(
+                        "Rice",
+                        500.0,
+                        MeasurementUnit.GRAM,
+                        shoppingList
+                );
+
+        when(shoppingListRepository.findById(shoppingListId))
+                .thenReturn(Optional.of(shoppingList));
 
         when(shoppingItemRepository.findById(shoppingItemId))
                 .thenReturn(Optional.of(item));
 
         shoppingItemService.deleteShoppingItem(
+                userId,
                 shoppingListId,
                 shoppingItemId
         );
@@ -482,13 +611,19 @@ class ShoppingItemServiceTest {
     @Test
     void shouldUpdatePurchaseStatus() {
 
+        Long userId = 1L;
         Long shoppingListId = 1L;
         Long shoppingItemId = 1L;
 
         ShoppingList shoppingList = createShoppingList();
 
         ShoppingItem item =
-                createItem("Rice", 500.0, MeasurementUnit.GRAM, shoppingList);
+                createItem(
+                        "Rice",
+                        500.0,
+                        MeasurementUnit.GRAM,
+                        shoppingList
+                );
 
         ShoppingItemResponse response =
                 createResponse(
@@ -498,6 +633,9 @@ class ShoppingItemServiceTest {
                         MeasurementUnit.GRAM,
                         true
                 );
+
+        when(shoppingListRepository.findById(shoppingListId))
+                .thenReturn(Optional.of(shoppingList));
 
         when(shoppingItemRepository.findById(shoppingItemId))
                 .thenReturn(Optional.of(item));
@@ -510,6 +648,7 @@ class ShoppingItemServiceTest {
 
         ShoppingItemResponse result =
                 shoppingItemService.updatePurchaseStatus(
+                        userId,
                         shoppingListId,
                         shoppingItemId,
                         true

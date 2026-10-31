@@ -3,7 +3,9 @@ package com.mealmate.recipe.service;
 import com.mealmate.recipe.dto.RecipeIngredientRequest;
 import com.mealmate.recipe.dto.RecipeRequest;
 import com.mealmate.recipe.dto.RecipeResponse;
+import com.mealmate.recipe.dto.UpdateRecipeRequest;
 import com.mealmate.recipe.entity.Ingredient;
+import com.mealmate.recipe.security.SecurityUtils;
 import com.mealmate.recipe.entity.Recipe;
 import com.mealmate.recipe.entity.RecipeIngredient;
 import com.mealmate.recipe.enums.RecipeCategory;
@@ -17,7 +19,9 @@ import com.mealmate.recipe.specification.RecipeSpecification;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+
 import java.util.HashSet;
 import java.util.Set;
 import java.util.ArrayList;
@@ -43,6 +47,9 @@ public class RecipeService {
     public RecipeResponse createRecipe(RecipeRequest request) {
 
         Recipe recipe = recipeMapper.toEntity(request);
+
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        recipe.setUserId(currentUserId);
 
         Set<Long> ingredientIds = new HashSet<>();
 
@@ -122,11 +129,13 @@ public class RecipeService {
 
     public RecipeResponse updateRecipe(
             Long id,
-            RecipeRequest request) {
+            UpdateRecipeRequest request) {
 
         Recipe existingRecipe = recipeRepository.findById(id)
                 .orElseThrow(() ->
                         new RecipeNotFoundException("Recipe not found"));
+
+        checkOwnership(existingRecipe);
 
         Set<Long> ingredientIds = new HashSet<>();
         List<RecipeIngredient> newRecipeIngredients = new ArrayList<>();
@@ -165,7 +174,6 @@ public class RecipeService {
         existingRecipe.setInstructions(request.getInstructions());
         existingRecipe.setPreparationTime(request.getPreparationTime());
         existingRecipe.setCategory(request.getCategory());
-        existingRecipe.setUserId(request.getUserId());
         existingRecipe.setImageUrl(request.getImageUrl());
 
         existingRecipe.getRecipeIngredients().clear();
@@ -182,8 +190,23 @@ public class RecipeService {
                 .orElseThrow(() ->
                         new RecipeNotFoundException("Recipe not found"));
 
+        checkOwnership(existingRecipe);
+
         recipeRepository.delete(existingRecipe);
     }
 
+    private void checkOwnership(Recipe recipe) {
 
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        String currentUserRole = SecurityUtils.getCurrentUserRole();
+
+        boolean isAdmin = "ADMIN".equals(currentUserRole);
+        boolean isOwner = currentUserId.equals(recipe.getUserId());
+
+        if (!isOwner && !isAdmin) {
+            throw new AccessDeniedException(
+                    "You are not allowed to modify this recipe"
+            );
+        }
+    }
 }

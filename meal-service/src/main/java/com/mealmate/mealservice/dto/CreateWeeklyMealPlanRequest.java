@@ -7,9 +7,6 @@ import java.time.LocalDate;
 public record CreateWeeklyMealPlanRequest(
 
         @NotNull
-        Long userId,
-
-        @NotNull
         LocalDate weekStartDate
 ) {
 }

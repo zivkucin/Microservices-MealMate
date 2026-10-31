@@ -6,15 +6,13 @@ import com.mealmate.shoppinglistservice.dto.ShoppingItemResponse;
 import com.mealmate.shoppinglistservice.dto.ShoppingListResponse;
 import com.mealmate.shoppinglistservice.entity.MeasurementUnit;
 import com.mealmate.shoppinglistservice.exception.ShoppingListAlreadyExistsException;
+import com.mealmate.shoppinglistservice.exception.ShoppingListNotFoundException;
 import com.mealmate.shoppinglistservice.repository.ShoppingItemRepository;
 import com.mealmate.shoppinglistservice.repository.ShoppingListRepository;
 import org.junit.jupiter.api.BeforeEach;
-import org.springframework.transaction.annotation.Transactional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-
 import org.springframework.boot.test.context.SpringBootTest;
-
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.junit.jupiter.Container;
@@ -29,6 +27,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 class ShoppingListServiceIntegrationTest {
 
+    private static final Long USER_ID = 1L;
+
     @Container
     static PostgreSQLContainer postgres =
             new PostgreSQLContainer("postgres:16")
@@ -37,10 +37,21 @@ class ShoppingListServiceIntegrationTest {
                     .withPassword("postgres");
 
     @DynamicPropertySource
-    static void configureDatabase(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+    static void configureDatabase(
+            DynamicPropertyRegistry registry
+    ) {
+        registry.add(
+                "spring.datasource.url",
+                postgres::getJdbcUrl
+        );
+        registry.add(
+                "spring.datasource.username",
+                postgres::getUsername
+        );
+        registry.add(
+                "spring.datasource.password",
+                postgres::getPassword
+        );
     }
 
     @Autowired
@@ -63,17 +74,20 @@ class ShoppingListServiceIntegrationTest {
 
     @Test
     void shouldCreateAndRetrieveShoppingList() {
+
         CreateShoppingListRequest request =
                 new CreateShoppingListRequest(
-                        1L,
                         LocalDate.of(2026, 9, 14)
                 );
 
         ShoppingListResponse created =
-                shoppingListService.createShoppingList(request);
+                shoppingListService.createShoppingList(
+                        USER_ID,
+                        request
+                );
 
         assertNotNull(created.shoppingListId());
-        assertEquals(1L, created.userId());
+        assertEquals(USER_ID, created.userId());
         assertEquals(
                 LocalDate.of(2026, 9, 14),
                 created.weekStartDate()
@@ -81,6 +95,7 @@ class ShoppingListServiceIntegrationTest {
 
         ShoppingListResponse found =
                 shoppingListService.getShoppingListById(
+                        USER_ID,
                         created.shoppingListId()
                 );
 
@@ -88,7 +103,7 @@ class ShoppingListServiceIntegrationTest {
                 created.shoppingListId(),
                 found.shoppingListId()
         );
-        assertEquals(1L, found.userId());
+        assertEquals(USER_ID, found.userId());
         assertEquals(
                 LocalDate.of(2026, 9, 14),
                 found.weekStartDate()
@@ -97,30 +112,39 @@ class ShoppingListServiceIntegrationTest {
 
     @Test
     void shouldNotCreateDuplicateShoppingList() {
+
         CreateShoppingListRequest request =
                 new CreateShoppingListRequest(
-                        1L,
                         LocalDate.of(2026, 9, 14)
                 );
 
-        shoppingListService.createShoppingList(request);
+        shoppingListService.createShoppingList(
+                USER_ID,
+                request
+        );
 
         assertThrows(
                 ShoppingListAlreadyExistsException.class,
-                () -> shoppingListService.createShoppingList(request)
+                () -> shoppingListService.createShoppingList(
+                        USER_ID,
+                        request
+                )
         );
     }
 
     @Test
     void shouldAddAndMergeShoppingItems() {
+
         CreateShoppingListRequest listRequest =
                 new CreateShoppingListRequest(
-                        1L,
                         LocalDate.of(2026, 9, 14)
                 );
 
         ShoppingListResponse shoppingList =
-                shoppingListService.createShoppingList(listRequest);
+                shoppingListService.createShoppingList(
+                        USER_ID,
+                        listRequest
+                );
 
         Long listId = shoppingList.shoppingListId();
 
@@ -133,6 +157,7 @@ class ShoppingListServiceIntegrationTest {
 
         ShoppingItemResponse firstResponse =
                 shoppingItemService.addShoppingItem(
+                        USER_ID,
                         listId,
                         firstItem
                 );
@@ -153,6 +178,7 @@ class ShoppingListServiceIntegrationTest {
 
         ShoppingItemResponse mergedResponse =
                 shoppingItemService.addShoppingItem(
+                        USER_ID,
                         listId,
                         secondItem
                 );
@@ -167,6 +193,26 @@ class ShoppingListServiceIntegrationTest {
         assertEquals(
                 1,
                 shoppingItemRepository.count()
+        );
+    }
+
+    @Test
+    void shouldRejectAnotherUserAccessingShoppingList() {
+
+        ShoppingListResponse shoppingList =
+                shoppingListService.createShoppingList(
+                        USER_ID,
+                        new CreateShoppingListRequest(
+                                LocalDate.of(2026, 9, 14)
+                        )
+                );
+
+        assertThrows(
+                ShoppingListNotFoundException.class,
+                () -> shoppingListService.getShoppingListById(
+                        3L,
+                        shoppingList.shoppingListId()
+                )
         );
     }
 }

@@ -3,6 +3,7 @@ package com.mealmate.recipe.service;
 import com.mealmate.recipe.dto.RecipeIngredientRequest;
 import com.mealmate.recipe.dto.RecipeRequest;
 import com.mealmate.recipe.dto.RecipeResponse;
+import com.mealmate.recipe.dto.UpdateRecipeRequest;
 import com.mealmate.recipe.entity.Ingredient;
 import com.mealmate.recipe.entity.Recipe;
 import com.mealmate.recipe.entity.RecipeIngredient;
@@ -13,6 +14,10 @@ import com.mealmate.recipe.exception.RecipeNotFoundException;
 import com.mealmate.recipe.mapper.RecipeMapper;
 import com.mealmate.recipe.repository.IngredientRepository;
 import com.mealmate.recipe.repository.RecipeRepository;
+import com.mealmate.recipe.security.JwtUserDetails;
+import com.mealmate.recipe.security.SecurityUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -23,6 +28,11 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +56,34 @@ class RecipeServiceTest {
     @InjectMocks
     private RecipeService recipeService;
 
+    @BeforeEach
+    void setUpSecurityContext() {
+
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(
+                        "ana",
+                        null,
+                        List.of()
+                );
+
+        authentication.setDetails(
+                new JwtUserDetails(
+                        1L,
+                        "ana",
+                        "USER"
+                )
+        );
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+
+        SecurityContextHolder.clearContext();
+    }
+
     @Test
     void shouldFindRecipeById() {
 
@@ -65,7 +103,8 @@ class RecipeServiceTest {
                 .thenReturn(response);
 
         // Act
-        RecipeResponse result = recipeService.getRecipeById(4L);
+        RecipeResponse result =
+                recipeService.getRecipeById(4L);
 
         // Assert
         assertEquals(4L, result.getId());
@@ -97,16 +136,19 @@ class RecipeServiceTest {
         request.setInstructions("Skuvati testeninu.");
         request.setPreparationTime(25);
         request.setCategory(RecipeCategory.ITALIAN);
-        request.setUserId(1L);
-        request.setImageUrl("https://example.com/carbonara.jpg");
+        request.setImageUrl(
+                "https://example.com/carbonara.jpg"
+        );
 
         RecipeIngredientRequest spaghettiRequest =
                 new RecipeIngredientRequest();
+
         spaghettiRequest.setIngredientId(1L);
         spaghettiRequest.setQuantity(300.0);
 
         RecipeIngredientRequest eggsRequest =
                 new RecipeIngredientRequest();
+
         eggsRequest.setIngredientId(2L);
         eggsRequest.setQuantity(3.0);
 
@@ -149,55 +191,74 @@ class RecipeServiceTest {
 
         // Act
 
-        RecipeResponse result = recipeService.createRecipe(request);
+        RecipeResponse result =
+                recipeService.createRecipe(request);
 
         // Assert
 
         assertEquals(10L, result.getId());
         assertEquals("Carbonara", result.getName());
 
-        assertEquals(2, recipe.getRecipeIngredients().size());
+        // userId dolazi iz JWT-a
+        assertEquals(1L, recipe.getUserId());
+
+        assertEquals(
+                2,
+                recipe.getRecipeIngredients().size()
+        );
 
         assertEquals(
                 spaghetti,
-                recipe.getRecipeIngredients().get(0).getIngredient()
+                recipe.getRecipeIngredients()
+                        .get(0)
+                        .getIngredient()
         );
 
         assertEquals(
                 300.0,
-                recipe.getRecipeIngredients().get(0).getQuantity()
+                recipe.getRecipeIngredients()
+                        .get(0)
+                        .getQuantity()
         );
 
         assertEquals(
                 eggs,
-                recipe.getRecipeIngredients().get(1).getIngredient()
+                recipe.getRecipeIngredients()
+                        .get(1)
+                        .getIngredient()
         );
 
         assertEquals(
                 3.0,
-                recipe.getRecipeIngredients().get(1).getQuantity()
+                recipe.getRecipeIngredients()
+                        .get(1)
+                        .getQuantity()
         );
 
-        verify(recipeRepository).save(recipe);
-        verify(recipeMapper).toResponse(recipe);
+        verify(recipeRepository)
+                .save(recipe);
+
+        verify(recipeMapper)
+                .toResponse(recipe);
     }
 
     @Test
     void shouldDeleteRecipe() {
 
-        // Arrange
-
         Recipe recipe = new Recipe();
-        recipe.setId(4L);
 
-        when(recipeRepository.findById(4L))
+        recipe.setId(1L);
+        recipe.setName("Recipe to Delete");
+        recipe.setDescription("Description");
+        recipe.setInstructions("Instructions");
+        recipe.setPreparationTime(20);
+        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setUserId(1L);
+
+        when(recipeRepository.findById(1L))
                 .thenReturn(Optional.of(recipe));
 
-        // Act
-
-        recipeService.deleteRecipe(4L);
-
-        // Assert
+        recipeService.deleteRecipe(1L);
 
         verify(recipeRepository).delete(recipe);
     }
@@ -207,7 +268,8 @@ class RecipeServiceTest {
 
         // Arrange
 
-        Pageable pageable = PageRequest.of(0, 2);
+        Pageable pageable =
+                PageRequest.of(0, 2);
 
         Recipe recipe1 = new Recipe();
         recipe1.setId(1L);
@@ -217,16 +279,24 @@ class RecipeServiceTest {
         recipe2.setId(2L);
         recipe2.setName("Pizza");
 
-        RecipeResponse response1 = new RecipeResponse();
+        RecipeResponse response1 =
+                new RecipeResponse();
+
         response1.setId(1L);
         response1.setName("Carbonara");
 
-        RecipeResponse response2 = new RecipeResponse();
+        RecipeResponse response2 =
+                new RecipeResponse();
+
         response2.setId(2L);
         response2.setName("Pizza");
 
         Page<Recipe> recipePage =
-                new PageImpl<>(List.of(recipe1, recipe2), pageable, 3);
+                new PageImpl<>(
+                        List.of(recipe1, recipe2),
+                        pageable,
+                        3
+                );
 
         when(recipeRepository.findAll(
                 any(Specification.class),
@@ -251,17 +321,40 @@ class RecipeServiceTest {
 
         // Assert
 
-        assertEquals(2, result.getContent().size());
-        assertEquals(3, result.getTotalElements());
-        assertEquals(2, result.getTotalPages());
-
-        assertEquals("Carbonara", result.getContent().get(0).getName());
-        assertEquals("Pizza", result.getContent().get(1).getName());
-
-        verify(recipeRepository).findAll(
-                any(Specification.class),
-                eq(pageable)
+        assertEquals(
+                2,
+                result.getContent().size()
         );
+
+        assertEquals(
+                3,
+                result.getTotalElements()
+        );
+
+        assertEquals(
+                2,
+                result.getTotalPages()
+        );
+
+        assertEquals(
+                "Carbonara",
+                result.getContent()
+                        .get(0)
+                        .getName()
+        );
+
+        assertEquals(
+                "Pizza",
+                result.getContent()
+                        .get(1)
+                        .getName()
+        );
+
+        verify(recipeRepository)
+                .findAll(
+                        any(Specification.class),
+                        eq(pageable)
+                );
     }
 
     @Test
@@ -269,20 +362,29 @@ class RecipeServiceTest {
 
         // Arrange
 
-        Pageable pageable = PageRequest.of(0, 10);
+        Pageable pageable =
+                PageRequest.of(0, 10);
 
         Recipe recipe = new Recipe();
         recipe.setId(1L);
         recipe.setName("Carbonara");
-        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setCategory(
+                RecipeCategory.ITALIAN
+        );
         recipe.setPreparationTime(25);
 
-        RecipeResponse response = new RecipeResponse();
+        RecipeResponse response =
+                new RecipeResponse();
+
         response.setId(1L);
         response.setName("Carbonara");
 
         Page<Recipe> recipePage =
-                new PageImpl<>(List.of(recipe), pageable, 1);
+                new PageImpl<>(
+                        List.of(recipe),
+                        pageable,
+                        1
+                );
 
         when(recipeRepository.findAll(
                 any(Specification.class),
@@ -304,13 +406,23 @@ class RecipeServiceTest {
 
         // Assert
 
-        assertEquals(1, result.getContent().size());
-        assertEquals("Carbonara", result.getContent().get(0).getName());
-
-        verify(recipeRepository).findAll(
-                any(Specification.class),
-                eq(pageable)
+        assertEquals(
+                1,
+                result.getContent().size()
         );
+
+        assertEquals(
+                "Carbonara",
+                result.getContent()
+                        .get(0)
+                        .getName()
+        );
+
+        verify(recipeRepository)
+                .findAll(
+                        any(Specification.class),
+                        eq(pageable)
+                );
     }
 
     @Test
@@ -318,18 +430,25 @@ class RecipeServiceTest {
 
         // Arrange
 
-        Pageable pageable = PageRequest.of(0, 10);
+        Pageable pageable =
+                PageRequest.of(0, 10);
 
         Recipe recipe = new Recipe();
         recipe.setId(1L);
         recipe.setName("Carbonara");
 
-        RecipeResponse response = new RecipeResponse();
+        RecipeResponse response =
+                new RecipeResponse();
+
         response.setId(1L);
         response.setName("Carbonara");
 
         Page<Recipe> recipePage =
-                new PageImpl<>(List.of(recipe), pageable, 1);
+                new PageImpl<>(
+                        List.of(recipe),
+                        pageable,
+                        1
+                );
 
         when(recipeRepository.findAll(
                 any(Specification.class),
@@ -351,13 +470,23 @@ class RecipeServiceTest {
 
         // Assert
 
-        assertEquals(1, result.getContent().size());
-        assertEquals("Carbonara", result.getContent().get(0).getName());
-
-        verify(recipeRepository).findAll(
-                any(Specification.class),
-                eq(pageable)
+        assertEquals(
+                1,
+                result.getContent().size()
         );
+
+        assertEquals(
+                "Carbonara",
+                result.getContent()
+                        .get(0)
+                        .getName()
+        );
+
+        verify(recipeRepository)
+                .findAll(
+                        any(Specification.class),
+                        eq(pageable)
+                );
     }
 
     @Test
@@ -365,19 +494,28 @@ class RecipeServiceTest {
 
         // Arrange
 
-        Pageable pageable = PageRequest.of(0, 10);
+        Pageable pageable =
+                PageRequest.of(0, 10);
 
         Recipe recipe = new Recipe();
         recipe.setId(1L);
         recipe.setName("Carbonara");
-        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setCategory(
+                RecipeCategory.ITALIAN
+        );
 
-        RecipeResponse response = new RecipeResponse();
+        RecipeResponse response =
+                new RecipeResponse();
+
         response.setId(1L);
         response.setName("Carbonara");
 
         Page<Recipe> recipePage =
-                new PageImpl<>(List.of(recipe), pageable, 1);
+                new PageImpl<>(
+                        List.of(recipe),
+                        pageable,
+                        1
+                );
 
         when(recipeRepository.findAll(
                 any(Specification.class),
@@ -399,13 +537,23 @@ class RecipeServiceTest {
 
         // Assert
 
-        assertEquals(1, result.getContent().size());
-        assertEquals("Carbonara", result.getContent().get(0).getName());
-
-        verify(recipeRepository).findAll(
-                any(Specification.class),
-                eq(pageable)
+        assertEquals(
+                1,
+                result.getContent().size()
         );
+
+        assertEquals(
+                "Carbonara",
+                result.getContent()
+                        .get(0)
+                        .getName()
+        );
+
+        verify(recipeRepository)
+                .findAll(
+                        any(Specification.class),
+                        eq(pageable)
+                );
     }
 
     @Test
@@ -413,19 +561,26 @@ class RecipeServiceTest {
 
         // Arrange
 
-        Pageable pageable = PageRequest.of(0, 10);
+        Pageable pageable =
+                PageRequest.of(0, 10);
 
         Recipe recipe = new Recipe();
         recipe.setId(1L);
         recipe.setName("Carbonara");
         recipe.setPreparationTime(25);
 
-        RecipeResponse response = new RecipeResponse();
+        RecipeResponse response =
+                new RecipeResponse();
+
         response.setId(1L);
         response.setName("Carbonara");
 
         Page<Recipe> recipePage =
-                new PageImpl<>(List.of(recipe), pageable, 1);
+                new PageImpl<>(
+                        List.of(recipe),
+                        pageable,
+                        1
+                );
 
         when(recipeRepository.findAll(
                 any(Specification.class),
@@ -447,13 +602,23 @@ class RecipeServiceTest {
 
         // Assert
 
-        assertEquals(1, result.getContent().size());
-        assertEquals("Carbonara", result.getContent().get(0).getName());
-
-        verify(recipeRepository).findAll(
-                any(Specification.class),
-                eq(pageable)
+        assertEquals(
+                1,
+                result.getContent().size()
         );
+
+        assertEquals(
+                "Carbonara",
+                result.getContent()
+                        .get(0)
+                        .getName()
+        );
+
+        verify(recipeRepository)
+                .findAll(
+                        any(Specification.class),
+                        eq(pageable)
+                );
     }
 
     @Test
@@ -461,7 +626,9 @@ class RecipeServiceTest {
 
         // Arrange
 
-        RecipeRequest request = new RecipeRequest();
+        RecipeRequest request =
+                new RecipeRequest();
+
         request.setName("Carbonara");
 
         RecipeIngredientRequest ingredientRequest =
@@ -470,7 +637,9 @@ class RecipeServiceTest {
         ingredientRequest.setIngredientId(999L);
         ingredientRequest.setQuantity(100.0);
 
-        request.setIngredients(List.of(ingredientRequest));
+        request.setIngredients(
+                List.of(ingredientRequest)
+        );
 
         Recipe recipe = new Recipe();
 
@@ -487,7 +656,8 @@ class RecipeServiceTest {
                 () -> recipeService.createRecipe(request)
         );
 
-        verify(recipeRepository, never()).save(any(Recipe.class));
+        verify(recipeRepository, never())
+                .save(any(Recipe.class));
     }
 
     @Test
@@ -505,7 +675,8 @@ class RecipeServiceTest {
                 () -> recipeService.deleteRecipe(999L)
         );
 
-        verify(recipeRepository, never()).delete(any(Recipe.class));
+        verify(recipeRepository, never())
+                .delete(any(Recipe.class));
     }
 
     @Test
@@ -513,19 +684,29 @@ class RecipeServiceTest {
 
         // Arrange
 
-        Recipe existingRecipe = new Recipe();
+        Recipe existingRecipe =
+                new Recipe();
+
         existingRecipe.setId(4L);
         existingRecipe.setName("Old Carbonara");
+        existingRecipe.setUserId(1L);
 
-        RecipeRequest request = new RecipeRequest();
+        UpdateRecipeRequest request =
+                new UpdateRecipeRequest();
+
         request.setName("New Carbonara");
         request.setDescription("New description");
         request.setInstructions("New instructions");
         request.setPreparationTime(30);
-        request.setCategory(RecipeCategory.ITALIAN);
-        request.setUserId(1L);
-        request.setImageUrl("https://example.com/new.jpg");
-        request.setIngredients(List.of());
+        request.setCategory(
+                RecipeCategory.ITALIAN
+        );
+        request.setImageUrl(
+                "https://example.com/new.jpg"
+        );
+        request.setIngredients(
+                List.of()
+        );
 
         when(recipeRepository.findById(4L))
                 .thenReturn(Optional.of(existingRecipe));
@@ -533,7 +714,9 @@ class RecipeServiceTest {
         when(recipeRepository.save(existingRecipe))
                 .thenReturn(existingRecipe);
 
-        RecipeResponse response = new RecipeResponse();
+        RecipeResponse response =
+                new RecipeResponse();
+
         response.setId(4L);
         response.setName("New Carbonara");
 
@@ -543,53 +726,96 @@ class RecipeServiceTest {
         // Act
 
         RecipeResponse result =
-                recipeService.updateRecipe(4L, request);
+                recipeService.updateRecipe(
+                        4L,
+                        request
+                );
 
         // Assert
 
-        assertEquals("New Carbonara", existingRecipe.getName());
-        assertEquals("New description", existingRecipe.getDescription());
-        assertEquals(30, existingRecipe.getPreparationTime());
+        assertEquals(
+                "New Carbonara",
+                existingRecipe.getName()
+        );
 
-        assertEquals(4L, result.getId());
-        assertEquals("New Carbonara", result.getName());
+        assertEquals(
+                "New description",
+                existingRecipe.getDescription()
+        );
 
-        verify(recipeRepository).save(existingRecipe);
+        assertEquals(
+                30,
+                existingRecipe.getPreparationTime()
+        );
+
+        // userId ne sme da se promeni
+        assertEquals(
+                1L,
+                existingRecipe.getUserId()
+        );
+
+        assertEquals(
+                4L,
+                result.getId()
+        );
+
+        assertEquals(
+                "New Carbonara",
+                result.getName()
+        );
+
+        verify(recipeRepository)
+                .save(existingRecipe);
     }
 
     @Test
     void shouldThrowExceptionWhenUpdatingNonExistingRecipe() {
 
         // Arrange
-        RecipeRequest request = new RecipeRequest();
+
+        UpdateRecipeRequest request =
+                new UpdateRecipeRequest();
+
         request.setName("New Carbonara");
 
         when(recipeRepository.findById(999L))
                 .thenReturn(Optional.empty());
 
         // Act & Assert
+
         assertThrows(
                 RecipeNotFoundException.class,
-                () -> recipeService.updateRecipe(999L, request)
+                () -> recipeService.updateRecipe(
+                        999L,
+                        request
+                )
         );
 
         verify(recipeRepository, never())
                 .save(any(Recipe.class));
     }
+
     @Test
     void shouldUpdateRecipeIngredients() {
 
         // Arrange
 
-        Recipe existingRecipe = new Recipe();
-        existingRecipe.setId(4L);
+        Recipe existingRecipe =
+                new Recipe();
 
-        Ingredient oldIngredient = new Ingredient();
+        existingRecipe.setId(4L);
+        existingRecipe.setUserId(1L);
+
+        Ingredient oldIngredient =
+                new Ingredient();
+
         oldIngredient.setId(1L);
         oldIngredient.setName("Spaghetti");
         oldIngredient.setUnit("g");
 
-        RecipeIngredient oldRecipeIngredient = new RecipeIngredient();
+        RecipeIngredient oldRecipeIngredient =
+                new RecipeIngredient();
+
         oldRecipeIngredient.setRecipe(existingRecipe);
         oldRecipeIngredient.setIngredient(oldIngredient);
         oldRecipeIngredient.setQuantity(300.0);
@@ -597,7 +823,9 @@ class RecipeServiceTest {
         existingRecipe.getRecipeIngredients()
                 .add(oldRecipeIngredient);
 
-        Ingredient newIngredient = new Ingredient();
+        Ingredient newIngredient =
+                new Ingredient();
+
         newIngredient.setId(3L);
         newIngredient.setName("Parmesan");
         newIngredient.setUnit("g");
@@ -608,15 +836,24 @@ class RecipeServiceTest {
         newIngredientRequest.setIngredientId(3L);
         newIngredientRequest.setQuantity(100.0);
 
-        RecipeRequest request = new RecipeRequest();
+        UpdateRecipeRequest request =
+                new UpdateRecipeRequest();
+
         request.setName("Updated Carbonara");
-        request.setDescription("Updated description");
-        request.setInstructions("Updated instructions");
+        request.setDescription(
+                "Updated description"
+        );
+        request.setInstructions(
+                "Updated instructions"
+        );
         request.setPreparationTime(30);
-        request.setCategory(RecipeCategory.ITALIAN);
-        request.setUserId(1L);
+        request.setCategory(
+                RecipeCategory.ITALIAN
+        );
         request.setImageUrl("new-image");
-        request.setIngredients(List.of(newIngredientRequest));
+        request.setIngredients(
+                List.of(newIngredientRequest)
+        );
 
         when(recipeRepository.findById(4L))
                 .thenReturn(Optional.of(existingRecipe));
@@ -627,7 +864,9 @@ class RecipeServiceTest {
         when(recipeRepository.save(existingRecipe))
                 .thenReturn(existingRecipe);
 
-        RecipeResponse response = new RecipeResponse();
+        RecipeResponse response =
+                new RecipeResponse();
+
         response.setId(4L);
         response.setName("Updated Carbonara");
 
@@ -637,15 +876,22 @@ class RecipeServiceTest {
         // Act
 
         RecipeResponse result =
-                recipeService.updateRecipe(4L, request);
+                recipeService.updateRecipe(
+                        4L,
+                        request
+                );
 
         // Assert
 
-        assertEquals("Updated Carbonara", result.getName());
+        assertEquals(
+                "Updated Carbonara",
+                result.getName()
+        );
 
         assertEquals(
                 1,
-                existingRecipe.getRecipeIngredients().size()
+                existingRecipe.getRecipeIngredients()
+                        .size()
         );
 
         assertEquals(
@@ -662,7 +908,14 @@ class RecipeServiceTest {
                         .getQuantity()
         );
 
-        verify(recipeRepository).save(existingRecipe);
+        // userId mora ostati nepromenjen
+        assertEquals(
+                1L,
+                existingRecipe.getUserId()
+        );
+
+        verify(recipeRepository)
+                .save(existingRecipe);
     }
 
     @Test
@@ -670,27 +923,36 @@ class RecipeServiceTest {
 
         // Arrange
 
-        RecipeRequest request = new RecipeRequest();
+        RecipeRequest request =
+                new RecipeRequest();
+
         request.setName("Carbonara");
 
         RecipeIngredientRequest firstIngredient =
                 new RecipeIngredientRequest();
+
         firstIngredient.setIngredientId(1L);
         firstIngredient.setQuantity(300.0);
 
         RecipeIngredientRequest secondIngredient =
                 new RecipeIngredientRequest();
+
         secondIngredient.setIngredientId(1L);
         secondIngredient.setQuantity(100.0);
 
-        request.setIngredients(List.of(
-                firstIngredient,
-                secondIngredient
-        ));
+        request.setIngredients(
+                List.of(
+                        firstIngredient,
+                        secondIngredient
+                )
+        );
 
-        Recipe recipe = new Recipe();
+        Recipe recipe =
+                new Recipe();
 
-        Ingredient spaghetti = new Ingredient();
+        Ingredient spaghetti =
+                new Ingredient();
+
         spaghetti.setId(1L);
         spaghetti.setName("Spaghetti");
         spaghetti.setUnit("g");
@@ -708,7 +970,8 @@ class RecipeServiceTest {
                 () -> recipeService.createRecipe(request)
         );
 
-        verify(recipeRepository, never()).save(any(Recipe.class));
+        verify(recipeRepository, never())
+                .save(any(Recipe.class));
     }
 
     @Test
@@ -716,29 +979,40 @@ class RecipeServiceTest {
 
         // Arrange
 
-        Recipe existingRecipe = new Recipe();
+        Recipe existingRecipe =
+                new Recipe();
+
         existingRecipe.setId(4L);
         existingRecipe.setName("Carbonara");
-
-        RecipeRequest request = new RecipeRequest();
-        request.setName("New Carbonara");
+        existingRecipe.setUserId(1L);
 
         RecipeIngredientRequest firstIngredient =
                 new RecipeIngredientRequest();
+
         firstIngredient.setIngredientId(1L);
         firstIngredient.setQuantity(300.0);
 
         RecipeIngredientRequest secondIngredient =
                 new RecipeIngredientRequest();
+
         secondIngredient.setIngredientId(1L);
         secondIngredient.setQuantity(100.0);
 
-        request.setIngredients(List.of(
-                firstIngredient,
-                secondIngredient
-        ));
+        UpdateRecipeRequest request =
+                new UpdateRecipeRequest();
 
-        Ingredient spaghetti = new Ingredient();
+        request.setName("New Carbonara");
+
+        request.setIngredients(
+                List.of(
+                        firstIngredient,
+                        secondIngredient
+                )
+        );
+
+        Ingredient spaghetti =
+                new Ingredient();
+
         spaghetti.setId(1L);
         spaghetti.setName("Spaghetti");
         spaghetti.setUnit("g");
@@ -753,9 +1027,21 @@ class RecipeServiceTest {
 
         assertThrows(
                 DuplicateRecipeIngredientException.class,
-                () -> recipeService.updateRecipe(4L, request)
+                () -> recipeService.updateRecipe(
+                        4L,
+                        request
+                )
         );
 
-        verify(recipeRepository, never()).save(any(Recipe.class));
+        verify(recipeRepository, never())
+                .save(any(Recipe.class));
+
+        // userId mora ostati nepromenjen
+        assertEquals(
+                1L,
+                existingRecipe.getUserId()
+        );
     }
+
+
 }

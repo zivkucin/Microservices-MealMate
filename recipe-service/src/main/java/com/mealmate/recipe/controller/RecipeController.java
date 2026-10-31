@@ -2,6 +2,7 @@ package com.mealmate.recipe.controller;
 
 import com.mealmate.recipe.dto.RecipeRequest;
 import com.mealmate.recipe.dto.RecipeResponse;
+import com.mealmate.recipe.dto.UpdateRecipeRequest;
 import com.mealmate.recipe.enums.RecipeCategory;
 import com.mealmate.recipe.service.RecipeService;
 import jakarta.validation.Valid;
@@ -62,7 +63,7 @@ public class RecipeController {
     @PutMapping("/{id}")
     public RecipeResponse updateRecipe(
             @PathVariable Long id,
-            @Valid @RequestBody RecipeRequest request) {
+            @Valid @RequestBody UpdateRecipeRequest request) {
         return recipeService.updateRecipe(id, request);
     }
 

@@ -2,6 +2,7 @@ package com.mealmate.mealservice.controller;
 
 import com.mealmate.mealservice.dto.AddSnackToMealRequest;
 import com.mealmate.mealservice.dto.PlannedSnackResponse;
+import com.mealmate.mealservice.security.SecurityUtils;
 import com.mealmate.mealservice.service.PlannedSnackService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -31,7 +32,10 @@ public class PlannedSnackController {
             @PathVariable Long plannedMealId,
             @Valid @RequestBody AddSnackToMealRequest request
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         return plannedSnackService.addSnackToMeal(
+                currentUserId,
                 weeklyMealPlanId,
                 plannedMealId,
                 request
@@ -51,7 +55,10 @@ public class PlannedSnackController {
             @PathVariable Long plannedMealId,
             @PathVariable Long plannedSnackId
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         plannedSnackService.removeSnackFromMeal(
+                currentUserId,
                 weeklyMealPlanId,
                 plannedMealId,
                 plannedSnackId

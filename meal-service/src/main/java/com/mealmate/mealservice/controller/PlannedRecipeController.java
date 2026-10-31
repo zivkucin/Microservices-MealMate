@@ -3,6 +3,7 @@ package com.mealmate.mealservice.controller;
 import com.mealmate.mealservice.dto.AddRecipeToMealRequest;
 import com.mealmate.mealservice.dto.PlannedRecipeResponse;
 import com.mealmate.mealservice.dto.UpdateRecipeQuantityRequest;
+import com.mealmate.mealservice.security.SecurityUtils;
 import com.mealmate.mealservice.service.PlannedRecipeService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -32,7 +33,10 @@ public class PlannedRecipeController {
             @PathVariable Long plannedMealId,
             @Valid @RequestBody AddRecipeToMealRequest request
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         return plannedRecipeService.addRecipeToMeal(
+                currentUserId,
                 weeklyMealPlanId,
                 plannedMealId,
                 request
@@ -49,7 +53,10 @@ public class PlannedRecipeController {
             @PathVariable Long weeklyMealPlanId,
             @PathVariable Long plannedMealId
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         plannedRecipeService.removeRecipeFromMeal(
+                currentUserId,
                 weeklyMealPlanId,
                 plannedMealId
         );
@@ -65,7 +72,10 @@ public class PlannedRecipeController {
             @PathVariable Long plannedMealId,
             @Valid @RequestBody UpdateRecipeQuantityRequest request
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         return plannedRecipeService.updateRecipeQuantity(
+                currentUserId,
                 weeklyMealPlanId,
                 plannedMealId,
                 request

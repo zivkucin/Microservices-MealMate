@@ -4,6 +4,7 @@ import com.mealmate.mealservice.dto.PlannedMealContentResponse;
 import com.mealmate.mealservice.service.PlannedMealService;
 import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.http.HttpStatus;
+import com.mealmate.mealservice.security.SecurityUtils;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -27,7 +28,10 @@ public class PlannedMealController {
             @PathVariable Long weeklyMealPlanId,
             @PathVariable Long plannedMealId
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         return plannedMealService.getMealContent(
+                currentUserId,
                 weeklyMealPlanId,
                 plannedMealId
         );
@@ -43,7 +47,10 @@ public class PlannedMealController {
             @PathVariable Long weeklyMealPlanId,
             @PathVariable Long plannedMealId
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         plannedMealService.clearMeal(
+                currentUserId,
                 weeklyMealPlanId,
                 plannedMealId
         );

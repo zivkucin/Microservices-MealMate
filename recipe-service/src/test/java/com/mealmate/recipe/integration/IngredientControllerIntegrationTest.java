@@ -3,20 +3,31 @@ package com.mealmate.recipe.integration;
 import com.mealmate.recipe.dto.IngredientRequest;
 import com.mealmate.recipe.entity.Ingredient;
 import com.mealmate.recipe.repository.IngredientRepository;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.resttestclient.TestRestTemplate;
+import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureTestRestTemplate
@@ -34,6 +45,58 @@ class IngredientControllerIntegrationTest {
     @Autowired
     private IngredientRepository ingredientRepository;
 
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
+    @BeforeEach
+    void cleanDatabase() {
+
+        ingredientRepository.deleteAll();
+
+        // Podrazumevano svaki zahtev šaljemo kao USER 1.
+        // Ovo sprečava 403 zbog nedostatka Authorization header-a.
+        restTemplate.getRestTemplate()
+                .getInterceptors()
+                .clear();
+
+        restTemplate.getRestTemplate()
+                .getInterceptors()
+                .add((request, body, execution) -> {
+
+                    if (request.getHeaders()
+                            .getFirst(HttpHeaders.AUTHORIZATION) == null) {
+
+                        request.getHeaders().setBearerAuth(
+                                generateTestToken(1L, "USER")
+                        );
+                    }
+
+                    return execution.execute(request, body);
+                });
+    }
+
+    private String generateTestToken(Long userId, String role) {
+
+        SecretKey key = Keys.hmacShaKeyFor(
+                jwtSecret.getBytes(StandardCharsets.UTF_8)
+        );
+
+        Date now = new Date();
+
+        return Jwts.builder()
+                .subject("test-" + role.toLowerCase())
+                .claim("userId", userId)
+                .claim("role", role)
+                .issuedAt(now)
+                .expiration(
+                        new Date(
+                                now.getTime() + 60 * 60 * 1000
+                        )
+                )
+                .signWith(key)
+                .compact();
+    }
+
     @Test
     void shouldCreateIngredient() {
 
@@ -50,7 +113,11 @@ class IngredientControllerIntegrationTest {
         );
 
         // Assert
-        assertEquals(HttpStatus.CREATED, response.getStatusCode());
+        assertEquals(
+                HttpStatus.CREATED,
+                response.getStatusCode()
+        );
+
         assertNotNull(response.getBody());
 
         Ingredient savedIngredient = ingredientRepository
@@ -71,7 +138,8 @@ class IngredientControllerIntegrationTest {
         ingredient.setName("Sugar");
         ingredient.setUnit("g");
 
-        Ingredient savedIngredient = ingredientRepository.saveAndFlush(ingredient);
+        Ingredient savedIngredient =
+                ingredientRepository.saveAndFlush(ingredient);
 
         // Act
         ResponseEntity<String> response = restTemplate.getForEntity(
@@ -80,10 +148,15 @@ class IngredientControllerIntegrationTest {
         );
 
         // Assert
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
         assertNotNull(response.getBody());
-        assertEquals(true, response.getBody().contains("Sugar"));
-        assertEquals(true, response.getBody().contains("g"));
+
+        assertTrue(response.getBody().contains("Sugar"));
+        assertTrue(response.getBody().contains("g"));
     }
 
     @Test
@@ -96,7 +169,10 @@ class IngredientControllerIntegrationTest {
         );
 
         // Assert
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
+        assertEquals(
+                HttpStatus.NOT_FOUND,
+                response.getStatusCode()
+        );
     }
 
     @Test
@@ -115,7 +191,10 @@ class IngredientControllerIntegrationTest {
         );
 
         // Assert
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
+        assertEquals(
+                HttpStatus.BAD_REQUEST,
+                response.getStatusCode()
+        );
     }
 
     @Test
@@ -126,21 +205,31 @@ class IngredientControllerIntegrationTest {
         request.setName("Milk");
         request.setUnit("ml");
 
-        restTemplate.postForEntity(
-                "/ingredients",
-                request,
-                String.class
+        ResponseEntity<String> firstResponse =
+                restTemplate.postForEntity(
+                        "/ingredients",
+                        request,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.CREATED,
+                firstResponse.getStatusCode()
         );
 
         // Act
-        ResponseEntity<String> response = restTemplate.postForEntity(
-                "/ingredients",
-                request,
-                String.class
-        );
+        ResponseEntity<String> response =
+                restTemplate.postForEntity(
+                        "/ingredients",
+                        request,
+                        String.class
+                );
 
         // Assert
-        assertEquals(HttpStatus.CONFLICT, response.getStatusCode());
+        assertEquals(
+                HttpStatus.CONFLICT,
+                response.getStatusCode()
+        );
     }
 
     @Test
@@ -165,10 +254,15 @@ class IngredientControllerIntegrationTest {
         );
 
         // Assert
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
         assertNotNull(response.getBody());
-        assertEquals(true, response.getBody().contains("Salt"));
-        assertEquals(true, response.getBody().contains("Sugar"));
+
+        assertTrue(response.getBody().contains("Salt"));
+        assertTrue(response.getBody().contains("Sugar"));
     }
 
     @Test
@@ -198,11 +292,15 @@ class IngredientControllerIntegrationTest {
         );
 
         // Assert
-        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
         assertNotNull(response.getBody());
 
-        assertEquals(true, response.getBody().contains("Sugar"));
-        assertEquals(true, response.getBody().contains("Brown Sugar"));
-        assertEquals(false, response.getBody().contains("Salt"));
+        assertTrue(response.getBody().contains("Sugar"));
+        assertTrue(response.getBody().contains("Brown Sugar"));
+        assertFalse(response.getBody().contains("Salt"));
     }
 }

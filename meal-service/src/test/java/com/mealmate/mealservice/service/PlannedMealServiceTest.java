@@ -14,8 +14,8 @@ import com.mealmate.mealservice.mapper.PlannedSnackMapper;
 import com.mealmate.mealservice.repository.PlannedMealRepository;
 import com.mealmate.mealservice.repository.PlannedRecipeRepository;
 import com.mealmate.mealservice.repository.PlannedSnackRepository;
-import org.junit.jupiter.api.BeforeEach;
 import com.mealmate.mealservice.exception.InvalidMealPlanException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -103,6 +103,7 @@ class PlannedMealServiceTest {
 
         PlannedMealContentResponse result =
                 plannedMealService.getMealContent(
+                        1L,
                         2L,
                         38L
                 );
@@ -185,6 +186,7 @@ class PlannedMealServiceTest {
 
         PlannedMealContentResponse result =
                 plannedMealService.getMealContent(
+                        1L,
                         2L,
                         38L
                 );
@@ -242,6 +244,7 @@ class PlannedMealServiceTest {
 
         PlannedMealContentResponse result =
                 plannedMealService.getMealContent(
+                        1L,
                         2L,
                         38L
                 );
@@ -276,6 +279,7 @@ class PlannedMealServiceTest {
                 assertThrows(
                         InvalidMealPlanException.class,
                         () -> plannedMealService.getMealContent(
+                                1L,
                                 999L,
                                 38L
                         )
@@ -283,6 +287,33 @@ class PlannedMealServiceTest {
 
         assertEquals(
                 "Planned meal does not belong to this weekly meal plan.",
+                exception.getMessage()
+        );
+
+        verifyNoInteractions(plannedRecipeRepository);
+        verifyNoInteractions(plannedSnackRepository);
+        verifyNoInteractions(plannedRecipeMapper);
+        verifyNoInteractions(plannedSnackMapper);
+    }
+
+    @Test
+    void shouldRejectMealFromAnotherUser() {
+
+        when(plannedMealRepository.findById(38L))
+                .thenReturn(Optional.of(plannedMeal));
+
+        InvalidMealPlanException exception =
+                assertThrows(
+                        InvalidMealPlanException.class,
+                        () -> plannedMealService.getMealContent(
+                                999L,
+                                2L,
+                                38L
+                        )
+                );
+
+        assertEquals(
+                "You are not allowed to access this weekly meal plan.",
                 exception.getMessage()
         );
 
@@ -308,6 +339,7 @@ class PlannedMealServiceTest {
                 .thenReturn(Optional.of(plannedRecipe));
 
         plannedMealService.clearMeal(
+                1L,
                 2L,
                 38L
         );

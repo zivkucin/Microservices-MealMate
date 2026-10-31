@@ -13,6 +13,7 @@ public interface ShoppingListMapper {
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)
     @Mapping(target = "items", ignore = true)
+    @Mapping(target = "userId", ignore = true)
     ShoppingList toEntity(CreateShoppingListRequest request);
 
     ShoppingListResponse toResponse(ShoppingList shoppingList);

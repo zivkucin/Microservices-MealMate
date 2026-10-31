@@ -34,11 +34,13 @@ public class PlannedRecipeService {
 
     @Transactional
     public PlannedRecipeResponse addRecipeToMeal(
+            Long userId,
             Long weeklyMealPlanId,
             Long plannedMealId,
             AddRecipeToMealRequest request
     ) {
         PlannedMeal plannedMeal = findAndValidatePlannedMeal(
+                userId,
                 weeklyMealPlanId,
                 plannedMealId
         );
@@ -64,10 +66,12 @@ public class PlannedRecipeService {
 
     @Transactional
     public void removeRecipeFromMeal(
+            Long userId,
             Long weeklyMealPlanId,
             Long plannedMealId
     ) {
         findAndValidatePlannedMeal(
+                userId,
                 weeklyMealPlanId,
                 plannedMealId
         );
@@ -86,11 +90,13 @@ public class PlannedRecipeService {
 
     @Transactional
     public PlannedRecipeResponse updateRecipeQuantity(
+            Long userId,
             Long weeklyMealPlanId,
             Long plannedMealId,
             UpdateRecipeQuantityRequest request
     ) {
         findAndValidatePlannedMeal(
+                userId,
                 weeklyMealPlanId,
                 plannedMealId
         );
@@ -113,6 +119,7 @@ public class PlannedRecipeService {
     }
 
     private PlannedMeal findAndValidatePlannedMeal(
+            Long userId,
             Long weeklyMealPlanId,
             Long plannedMealId
     ) {
@@ -130,6 +137,15 @@ public class PlannedRecipeService {
 
             throw new InvalidMealPlanException(
                     "Planned meal does not belong to this weekly meal plan."
+            );
+        }
+
+        Long planUserId =
+                plannedMeal.getWeeklyMealPlan().getUserId();
+
+        if (!planUserId.equals(userId)) {
+            throw new InvalidMealPlanException(
+                    "You are not allowed to access this weekly meal plan."
             );
         }
 

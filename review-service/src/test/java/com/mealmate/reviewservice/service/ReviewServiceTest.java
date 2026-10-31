@@ -7,16 +7,22 @@ import com.mealmate.reviewservice.dto.ReviewResponse;
 import com.mealmate.reviewservice.dto.ReviewSummaryResponse;
 import com.mealmate.reviewservice.dto.UpdateReviewRequest;
 import com.mealmate.reviewservice.entity.Review;
+import com.mealmate.reviewservice.exception.OwnRecipeReviewException;
 import com.mealmate.reviewservice.exception.ReviewAlreadyExistsException;
 import com.mealmate.reviewservice.exception.ReviewNotFoundException;
-import com.mealmate.reviewservice.exception.OwnRecipeReviewException;
 import com.mealmate.reviewservice.mapper.ReviewMapper;
 import com.mealmate.reviewservice.repository.ReviewRepository;
+import com.mealmate.reviewservice.security.JwtUserDetails;
+import com.mealmate.reviewservice.security.SecurityUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,14 +46,42 @@ class ReviewServiceTest {
     @InjectMocks
     private ReviewService reviewService;
 
+    @BeforeEach
+    void setUpSecurityContext() {
+        setCurrentUser(2L, "USER");
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void setCurrentUser(Long userId, String role) {
+
+        UsernamePasswordAuthenticationToken authentication =
+                new UsernamePasswordAuthenticationToken(
+                        "test-user",
+                        null,
+                        List.of()
+                );
+
+        authentication.setDetails(
+                new JwtUserDetails(
+                        userId,
+                        "test-user",
+                        role
+                )
+        );
+
+        SecurityContextHolder.getContext()
+                .setAuthentication(authentication);
+    }
+
     @Test
     void shouldCreateReview() {
 
-        // Arrange
-
         CreateReviewRequest request =
                 new CreateReviewRequest(
-                        2L,
                         5,
                         "Odlican recept!"
                 );
@@ -92,12 +126,8 @@ class ReviewServiceTest {
         when(reviewMapper.toResponse(review))
                 .thenReturn(response);
 
-        // Act
-
         ReviewResponse result =
                 reviewService.createReview(1L, request);
-
-        // Assert
 
         assertEquals(1L, result.reviewId());
         assertEquals(2L, result.userId());
@@ -106,6 +136,8 @@ class ReviewServiceTest {
         assertEquals("Odlican recept!", result.comment());
 
         verify(recipeClient).getRecipeById(1L);
+        verify(reviewRepository)
+                .existsByUserIdAndRecipeId(2L, 1L);
         verify(reviewRepository).save(review);
         verify(reviewMapper).toResponse(review);
     }
@@ -113,11 +145,8 @@ class ReviewServiceTest {
     @Test
     void shouldThrowExceptionWhenReviewAlreadyExists() {
 
-        // Arrange
-
         CreateReviewRequest request =
                 new CreateReviewRequest(
-                        2L,
                         5,
                         "Odlican recept!"
                 );
@@ -135,14 +164,14 @@ class ReviewServiceTest {
         when(reviewRepository.existsByUserIdAndRecipeId(2L, 1L))
                 .thenReturn(true);
 
-        // Act & Assert
-
         assertThrows(
                 ReviewAlreadyExistsException.class,
                 () -> reviewService.createReview(1L, request)
         );
 
         verify(recipeClient).getRecipeById(1L);
+        verify(reviewRepository)
+                .existsByUserIdAndRecipeId(2L, 1L);
         verify(reviewRepository, never())
                 .save(any(Review.class));
     }
@@ -150,11 +179,10 @@ class ReviewServiceTest {
     @Test
     void shouldThrowExceptionWhenUserReviewsOwnRecipe() {
 
-        // Arrange
+        setCurrentUser(1L, "USER");
 
         CreateReviewRequest request =
                 new CreateReviewRequest(
-                        1L,
                         5,
                         "Moj recept!"
                 );
@@ -168,8 +196,6 @@ class ReviewServiceTest {
 
         when(recipeClient.getRecipeById(1L))
                 .thenReturn(recipe);
-
-        // Act & Assert
 
         assertThrows(
                 OwnRecipeReviewException.class,
@@ -185,8 +211,6 @@ class ReviewServiceTest {
 
     @Test
     void shouldFindReviewById() {
-
-        // Arrange
 
         Review review = new Review();
         review.setReviewId(1L);
@@ -212,12 +236,8 @@ class ReviewServiceTest {
         when(reviewMapper.toResponse(review))
                 .thenReturn(response);
 
-        // Act
-
         ReviewResponse result =
                 reviewService.getReviewById(1L);
-
-        // Assert
 
         assertEquals(1L, result.reviewId());
         assertEquals(5, result.rating());
@@ -229,12 +249,8 @@ class ReviewServiceTest {
     @Test
     void shouldThrowExceptionWhenReviewDoesNotExist() {
 
-        // Arrange
-
         when(reviewRepository.findById(999L))
                 .thenReturn(Optional.empty());
-
-        // Act & Assert
 
         assertThrows(
                 ReviewNotFoundException.class,
@@ -244,8 +260,6 @@ class ReviewServiceTest {
 
     @Test
     void shouldGetReviewsByRecipeId() {
-
-        // Arrange
 
         Review review1 = new Review();
         review1.setReviewId(1L);
@@ -291,12 +305,8 @@ class ReviewServiceTest {
         when(reviewMapper.toResponse(review2))
                 .thenReturn(response2);
 
-        // Act
-
         List<ReviewResponse> result =
                 reviewService.getReviewsByRecipeId(1L);
-
-        // Assert
 
         assertEquals(2, result.size());
         assertEquals(1L, result.get(0).reviewId());
@@ -308,8 +318,6 @@ class ReviewServiceTest {
 
     @Test
     void shouldGetReviewSummary() {
-
-        // Arrange
 
         Review review1 = new Review();
         review1.setRating(5);
@@ -332,12 +340,8 @@ class ReviewServiceTest {
                         review4
                 ));
 
-        // Act
-
         ReviewSummaryResponse result =
                 reviewService.getReviewSummary(1L);
-
-        // Assert
 
         assertEquals(1L, result.recipeId());
         assertEquals(4.25, result.averageRating());
@@ -351,8 +355,6 @@ class ReviewServiceTest {
 
     @Test
     void shouldUpdateReview() {
-
-        // Arrange
 
         Review existingReview = new Review();
         existingReview.setReviewId(1L);
@@ -388,16 +390,11 @@ class ReviewServiceTest {
         when(reviewMapper.toResponse(existingReview))
                 .thenReturn(response);
 
-        // Act
-
         ReviewResponse result =
                 reviewService.updateReview(
                         1L,
-                        2L,
                         request
                 );
-
-        // Assert
 
         verify(reviewMapper)
                 .updateEntity(request, existingReview);
@@ -413,7 +410,7 @@ class ReviewServiceTest {
     @Test
     void shouldThrowExceptionWhenUpdatingReviewOfAnotherUser() {
 
-        // Arrange
+        setCurrentUser(3L, "USER");
 
         UpdateReviewRequest request =
                 new UpdateReviewRequest(
@@ -425,13 +422,10 @@ class ReviewServiceTest {
                 .findByReviewIdAndUserId(1L, 3L))
                 .thenReturn(Optional.empty());
 
-        // Act & Assert
-
         assertThrows(
                 ReviewNotFoundException.class,
                 () -> reviewService.updateReview(
                         1L,
-                        3L,
                         request
                 )
         );
@@ -443,8 +437,6 @@ class ReviewServiceTest {
     @Test
     void shouldDeleteReview() {
 
-        // Arrange
-
         Review review = new Review();
         review.setReviewId(1L);
         review.setUserId(2L);
@@ -454,11 +446,7 @@ class ReviewServiceTest {
                 .findByReviewIdAndUserId(1L, 2L))
                 .thenReturn(Optional.of(review));
 
-        // Act
-
-        reviewService.deleteReview(1L, 2L);
-
-        // Assert
+        reviewService.deleteReview(1L);
 
         verify(reviewRepository).delete(review);
     }
@@ -466,17 +454,15 @@ class ReviewServiceTest {
     @Test
     void shouldThrowExceptionWhenDeletingReviewOfAnotherUser() {
 
-        // Arrange
+        setCurrentUser(3L, "USER");
 
         when(reviewRepository
                 .findByReviewIdAndUserId(1L, 3L))
                 .thenReturn(Optional.empty());
 
-        // Act & Assert
-
         assertThrows(
                 ReviewNotFoundException.class,
-                () -> reviewService.deleteReview(1L, 3L)
+                () -> reviewService.deleteReview(1L)
         );
 
         verify(reviewRepository, never())

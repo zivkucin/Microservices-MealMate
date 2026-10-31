@@ -1,6 +1,5 @@
 package com.mealmate.reviewservice.controller;
 
-import com.mealmate.reviewservice.client.RecipeClient;
 import com.mealmate.reviewservice.dto.*;
 import com.mealmate.reviewservice.service.ReviewService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,7 +26,6 @@ import java.util.List;
 public class ReviewController {
 
     private final ReviewService reviewService;
-    private final RecipeClient recipeClient;
 
     @Operation(
             summary = "Get review by ID",
@@ -57,7 +55,6 @@ public class ReviewController {
         return reviewService.getReviewById(reviewId);
     }
 
-
     @Operation(
             summary = "Get reviews for a recipe",
             description = "Returns all reviews for the specified recipe, ordered from newest to oldest."
@@ -83,7 +80,6 @@ public class ReviewController {
     ) {
         return reviewService.getReviewsByRecipeId(recipeId);
     }
-
 
     @Operation(
             summary = "Create a review",
@@ -130,7 +126,6 @@ public class ReviewController {
         return reviewService.createReview(recipeId, request);
     }
 
-
     @Operation(
             summary = "Get review summary",
             description = "Returns the average rating, total number of reviews and rating distribution for a recipe."
@@ -157,7 +152,6 @@ public class ReviewController {
         return reviewService.getReviewSummary(recipeId);
     }
 
-
     @Operation(
             summary = "Update a review",
             description = "Updates the rating and comment of an existing review. Only the user who created the review can update it."
@@ -178,7 +172,7 @@ public class ReviewController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Review not found for the specified user"
+                    description = "Review not found for the authenticated user"
             )
     })
     @PutMapping("/reviews/{reviewId}")
@@ -188,12 +182,6 @@ public class ReviewController {
                     example = "1"
             )
             @PathVariable Long reviewId,
-
-            @Parameter(
-                    description = "ID of the user who owns the review",
-                    example = "2"
-            )
-            @RequestParam Long userId,
 
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "Updated review data",
@@ -208,11 +196,9 @@ public class ReviewController {
     ) {
         return reviewService.updateReview(
                 reviewId,
-                userId,
                 request
         );
     }
-
 
     @Operation(
             summary = "Delete a review",
@@ -225,7 +211,7 @@ public class ReviewController {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "Review not found for the specified user"
+                    description = "Review not found for the authenticated user"
             )
     })
     @DeleteMapping("/reviews/{reviewId}")
@@ -235,16 +221,8 @@ public class ReviewController {
                     description = "ID of the review",
                     example = "1"
             )
-            @PathVariable Long reviewId,
-
-            @Parameter(
-                    description = "ID of the user who owns the review",
-                    example = "2"
-            )
-            @RequestParam Long userId
+            @PathVariable Long reviewId
     ) {
-        reviewService.deleteReview(reviewId, userId);
+        reviewService.deleteReview(reviewId);
     }
-
-   
 }

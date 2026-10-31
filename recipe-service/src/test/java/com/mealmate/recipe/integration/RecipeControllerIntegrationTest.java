@@ -2,20 +2,25 @@ package com.mealmate.recipe.integration;
 
 import com.mealmate.recipe.dto.RecipeIngredientRequest;
 import com.mealmate.recipe.dto.RecipeRequest;
+import com.mealmate.recipe.dto.UpdateRecipeRequest;
 import com.mealmate.recipe.entity.Ingredient;
 import com.mealmate.recipe.entity.Recipe;
 import com.mealmate.recipe.enums.RecipeCategory;
 import com.mealmate.recipe.repository.IngredientRepository;
 import com.mealmate.recipe.repository.RecipeIngredientRepository;
 import com.mealmate.recipe.repository.RecipeRepository;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.resttestclient.autoconfigure.AutoConfigureTestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +28,9 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -49,56 +57,113 @@ class RecipeControllerIntegrationTest {
     @Autowired
     private RecipeIngredientRepository recipeIngredientRepository;
 
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
     @BeforeEach
     void cleanDatabase() {
         recipeIngredientRepository.deleteAll();
         recipeRepository.deleteAll();
         ingredientRepository.deleteAll();
+
+        restTemplate.getRestTemplate()
+                .getInterceptors()
+                .clear();
+
+        restTemplate.getRestTemplate()
+                .getInterceptors()
+                .add((request, body, execution) -> {
+                    if (request.getHeaders()
+                            .getFirst(HttpHeaders.AUTHORIZATION) == null) {
+
+                        request.getHeaders().setBearerAuth(
+                                generateTestToken(1L, "USER")
+                        );
+                    }
+
+                    return execution.execute(request, body);
+                });
+    }
+
+    private String generateTestToken(Long userId, String role) {
+        SecretKey key = Keys.hmacShaKeyFor(
+                jwtSecret.getBytes(StandardCharsets.UTF_8)
+        );
+
+        Date now = new Date();
+
+        return Jwts.builder()
+                .subject("test-" + role.toLowerCase())
+                .claim("userId", userId)
+                .claim("role", role)
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + 60 * 60 * 1000))
+                .signWith(key)
+                .compact();
+    }
+
+    private HttpHeaders adminHeaders() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(
+                generateTestToken(99L, "ADMIN")
+        );
+        return headers;
+    }
+
+    private RecipeIngredientRequest createIngredientRequest(
+            String name,
+            String unit,
+            double quantity
+    ) {
+        Ingredient ingredient = new Ingredient();
+        ingredient.setName(name);
+        ingredient.setUnit(unit);
+        ingredient = ingredientRepository.save(ingredient);
+
+        RecipeIngredientRequest request =
+                new RecipeIngredientRequest();
+
+        request.setIngredientId(ingredient.getId());
+        request.setQuantity(quantity);
+
+        return request;
     }
 
     @Test
     void shouldCreateRecipeWithIngredients() {
 
-        // Arrange
-
         Ingredient spaghetti = new Ingredient();
         spaghetti.setName("Spaghetti");
         spaghetti.setUnit("g");
+        spaghetti = ingredientRepository.save(spaghetti);
 
         Ingredient eggs = new Ingredient();
         eggs.setName("Eggs");
         eggs.setUnit("pcs");
-
-        Ingredient savedSpaghetti =
-                ingredientRepository.saveAndFlush(spaghetti);
-
-        Ingredient savedEggs =
-                ingredientRepository.saveAndFlush(eggs);
+        eggs = ingredientRepository.save(eggs);
 
         RecipeIngredientRequest spaghettiRequest =
                 new RecipeIngredientRequest();
 
-        spaghettiRequest.setIngredientId(savedSpaghetti.getId());
+        spaghettiRequest.setIngredientId(spaghetti.getId());
         spaghettiRequest.setQuantity(300.0);
 
         RecipeIngredientRequest eggsRequest =
                 new RecipeIngredientRequest();
 
-        eggsRequest.setIngredientId(savedEggs.getId());
+        eggsRequest.setIngredientId(eggs.getId());
         eggsRequest.setQuantity(3.0);
 
         RecipeRequest request = new RecipeRequest();
+
         request.setName("Carbonara");
         request.setDescription("Italian pasta");
         request.setInstructions("Cook pasta.");
         request.setPreparationTime(25);
         request.setCategory(RecipeCategory.ITALIAN);
-        request.setUserId(1L);
         request.setIngredients(
                 List.of(spaghettiRequest, eggsRequest)
         );
-
-        // Act
 
         ResponseEntity<String> response =
                 restTemplate.postForEntity(
@@ -107,328 +172,65 @@ class RecipeControllerIntegrationTest {
                         String.class
                 );
 
-        System.out.println("STATUS: " + response.getStatusCode());
-        System.out.println("BODY: " + response.getBody());
-
-        // Assert
-
         assertEquals(
                 HttpStatus.CREATED,
                 response.getStatusCode()
         );
 
         assertNotNull(response.getBody());
-
-        Recipe savedRecipe = recipeRepository.findAll().stream()
-                .filter(recipe -> "Carbonara".equals(recipe.getName()))
-                .findFirst()
-                .orElseThrow();
-
-        assertEquals("Carbonara", savedRecipe.getName());
-        assertEquals(25, savedRecipe.getPreparationTime());
-        assertEquals(RecipeCategory.ITALIAN, savedRecipe.getCategory());
-        assertEquals(1L, savedRecipe.getUserId());
+        assertTrue(response.getBody().contains("Carbonara"));
+        assertTrue(response.getBody().contains("Spaghetti"));
+        assertTrue(response.getBody().contains("Eggs"));
 
         assertEquals(
-                2,
-                recipeIngredientRepository.countByRecipeId(savedRecipe.getId())
+                1L,
+                recipeRepository.count()
+        );
+
+        assertEquals(
+                2L,
+                recipeIngredientRepository.count()
         );
     }
 
     @Test
     void shouldGetRecipeById() {
-        Recipe recipe = new Recipe();
-        recipe.setName("Pancakes");
-        recipe.setDescription("Simple pancakes");
-        recipe.setInstructions("Mix and cook.");
-        recipe.setPreparationTime(15);
-        recipe.setCategory(RecipeCategory.BREAKFAST);
-        recipe.setUserId(1L);
-
-        Recipe savedRecipe = recipeRepository.saveAndFlush(recipe);
-
-        ResponseEntity<String> response =
-                restTemplate.getForEntity(
-                        "/recipes/" + savedRecipe.getId(),
-                        String.class
-                );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-
-        assertTrue(response.getBody().contains("\"name\":\"Pancakes\""));
-        assertTrue(response.getBody().contains("\"preparationTime\":15"));
-        assertTrue(response.getBody().contains("\"category\":\"BREAKFAST\""));
-    }
-
-    @Test
-    void shouldReturn404WhenRecipeDoesNotExist() {
-        ResponseEntity<String> response =
-                restTemplate.getForEntity(
-                        "/recipes/999",
-                        String.class
-                );
-
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-    }
-
-    @Test
-    void shouldGetAllRecipes() {
-
-        Recipe recipe1 = new Recipe();
-        recipe1.setName("Pasta");
-        recipe1.setDescription("Easy pasta");
-        recipe1.setInstructions("Cook pasta.");
-        recipe1.setPreparationTime(20);
-        recipe1.setCategory(RecipeCategory.ITALIAN);
-        recipe1.setUserId(1L);
-
-        Recipe recipe2 = new Recipe();
-        recipe2.setName("Pancakes");
-        recipe2.setDescription("Simple pancakes");
-        recipe2.setInstructions("Mix and cook.");
-        recipe2.setPreparationTime(15);
-        recipe2.setCategory(RecipeCategory.BREAKFAST);
-        recipe2.setUserId(1L);
-
-        recipeRepository.saveAndFlush(recipe1);
-        recipeRepository.saveAndFlush(recipe2);
-
-        ResponseEntity<String> response =
-                restTemplate.getForEntity(
-                        "/recipes?page=0&size=10",
-                        String.class
-                );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-
-        System.out.println("STATUS: " + response.getStatusCode());
-        System.out.println("BODY: " + response.getBody());
-    }
-
-    @Test
-    void shouldFilterRecipesByCategory() {
-
-        Recipe italianRecipe = new Recipe();
-        italianRecipe.setName("Pasta Carbonara");
-        italianRecipe.setDescription("Italian pasta");
-        italianRecipe.setInstructions("Cook pasta.");
-        italianRecipe.setPreparationTime(25);
-        italianRecipe.setCategory(RecipeCategory.ITALIAN);
-        italianRecipe.setUserId(1L);
-
-        Recipe breakfastRecipe = new Recipe();
-        breakfastRecipe.setName("Pancakes");
-        breakfastRecipe.setDescription("Breakfast");
-        breakfastRecipe.setInstructions("Mix and cook.");
-        breakfastRecipe.setPreparationTime(15);
-        breakfastRecipe.setCategory(RecipeCategory.BREAKFAST);
-        breakfastRecipe.setUserId(1L);
-
-        recipeRepository.saveAndFlush(italianRecipe);
-        recipeRepository.saveAndFlush(breakfastRecipe);
-
-        ResponseEntity<String> response =
-                restTemplate.getForEntity(
-                        "/recipes?category=ITALIAN&page=0&size=10",
-                        String.class
-                );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-
-        System.out.println("STATUS: " + response.getStatusCode());
-        System.out.println("BODY: " + response.getBody());
-    }
-
-    @Test
-    void shouldFilterRecipesByName() {
-
-        Recipe pastaRecipe = new Recipe();
-        pastaRecipe.setName("Pasta Carbonara");
-        pastaRecipe.setDescription("Italian pasta");
-        pastaRecipe.setInstructions("Cook pasta.");
-        pastaRecipe.setPreparationTime(25);
-        pastaRecipe.setCategory(RecipeCategory.ITALIAN);
-        pastaRecipe.setUserId(1L);
-
-        Recipe chickenRecipe = new Recipe();
-        chickenRecipe.setName("Chicken Salad");
-        chickenRecipe.setDescription("Fresh salad");
-        chickenRecipe.setInstructions("Mix ingredients.");
-        chickenRecipe.setPreparationTime(15);
-        chickenRecipe.setCategory(RecipeCategory.VEGETARIAN);
-        chickenRecipe.setUserId(1L);
-
-        recipeRepository.saveAndFlush(pastaRecipe);
-        recipeRepository.saveAndFlush(chickenRecipe);
-
-        ResponseEntity<String> response =
-                restTemplate.getForEntity(
-                        "/recipes?name=pasta&page=0&size=10",
-                        String.class
-                );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-
-        System.out.println("STATUS: " + response.getStatusCode());
-        System.out.println("BODY: " + response.getBody());
-    }
-
-    @Test
-    void shouldFilterRecipesByMaxPreparationTime() {
-
-        Recipe quickRecipe = new Recipe();
-        quickRecipe.setName("Quick Pasta");
-        quickRecipe.setDescription("Fast meal");
-        quickRecipe.setInstructions("Cook quickly.");
-        quickRecipe.setPreparationTime(15);
-        quickRecipe.setCategory(RecipeCategory.ITALIAN);
-        quickRecipe.setUserId(1L);
-
-        Recipe slowRecipe = new Recipe();
-        slowRecipe.setName("Slow Roast");
-        slowRecipe.setDescription("Long meal");
-        slowRecipe.setInstructions("Cook slowly.");
-        slowRecipe.setPreparationTime(90);
-        slowRecipe.setCategory(RecipeCategory.OTHER);
-        slowRecipe.setUserId(1L);
-
-        recipeRepository.saveAndFlush(quickRecipe);
-        recipeRepository.saveAndFlush(slowRecipe);
-
-        ResponseEntity<String> response =
-                restTemplate.getForEntity(
-                        "/recipes?maxPreparationTime=30&page=0&size=10",
-                        String.class
-                );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-
-        System.out.println("STATUS: " + response.getStatusCode());
-        System.out.println("BODY: " + response.getBody());
-    }
-
-    @Test
-    void shouldUpdateRecipe() {
 
         Recipe recipe = new Recipe();
-        recipe.setName("Old Recipe");
-        recipe.setDescription("Old description");
-        recipe.setInstructions("Old instructions");
-        recipe.setPreparationTime(30);
-        recipe.setCategory(RecipeCategory.OTHER);
+
+        recipe.setName("Pasta Carbonara");
+        recipe.setDescription("Italian pasta");
+        recipe.setInstructions("Cook pasta.");
+        recipe.setPreparationTime(25);
+        recipe.setCategory(RecipeCategory.ITALIAN);
         recipe.setUserId(1L);
 
-        Recipe savedRecipe = recipeRepository.saveAndFlush(recipe);
-
-        Ingredient tomato = new Ingredient();
-        tomato.setName("Tomato");
-        tomato.setUnit("pcs");
-
-        Ingredient savedTomato =
-                ingredientRepository.saveAndFlush(tomato);
-
-        RecipeIngredientRequest tomatoRequest =
-                new RecipeIngredientRequest();
-        tomatoRequest.setIngredientId(savedTomato.getId());
-        tomatoRequest.setQuantity(2.0);
-
-        RecipeRequest updateRequest = new RecipeRequest();
-        updateRequest.setName("Updated Recipe");
-        updateRequest.setDescription("Updated description");
-        updateRequest.setInstructions("Updated instructions");
-        updateRequest.setPreparationTime(20);
-        updateRequest.setCategory(RecipeCategory.ITALIAN);
-        updateRequest.setUserId(1L);
-        updateRequest.setIngredients(List.of(tomatoRequest));
+        recipe = recipeRepository.save(recipe);
 
         ResponseEntity<String> response =
-                restTemplate.exchange(
-                        "/recipes/" + savedRecipe.getId(),
-                        HttpMethod.PUT,
-                        new HttpEntity<>(updateRequest),
+                restTemplate.getForEntity(
+                        "/recipes/" + recipe.getId(),
                         String.class
                 );
-
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertNotNull(response.getBody());
-
-        System.out.println("STATUS: " + response.getStatusCode());
-        System.out.println("BODY: " + response.getBody());
-
-        Recipe updatedRecipe =
-                recipeRepository.findById(savedRecipe.getId())
-                        .orElseThrow();
-
-        assertEquals("Updated Recipe", updatedRecipe.getName());
-        assertEquals("Updated description", updatedRecipe.getDescription());
-        assertEquals("Updated instructions", updatedRecipe.getInstructions());
-        assertEquals(20, updatedRecipe.getPreparationTime());
-        assertEquals(RecipeCategory.ITALIAN, updatedRecipe.getCategory());
-    }
-
-    @Test
-    void shouldDeleteRecipe() {
-
-        Recipe recipe = new Recipe();
-        recipe.setName("Recipe to Delete");
-        recipe.setDescription("Will be deleted");
-        recipe.setInstructions("Delete me.");
-        recipe.setPreparationTime(10);
-        recipe.setCategory(RecipeCategory.OTHER);
-        recipe.setUserId(1L);
-
-        Recipe savedRecipe = recipeRepository.saveAndFlush(recipe);
-
-        ResponseEntity<String> response =
-                restTemplate.exchange(
-                        "/recipes/" + savedRecipe.getId(),
-                        HttpMethod.DELETE,
-                        null,
-                        String.class
-                );
-
-        assertEquals(HttpStatus.NO_CONTENT, response.getStatusCode());
 
         assertEquals(
-                false,
-                recipeRepository.existsById(savedRecipe.getId())
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains("Pasta Carbonara")
         );
     }
 
     @Test
-    void shouldReturn404WhenUpdatingNonExistingRecipe() {
-
-        Ingredient tomato = new Ingredient();
-        tomato.setName("TomatoForNotFoundTest");
-        tomato.setUnit("pcs");
-
-        Ingredient savedTomato =
-                ingredientRepository.saveAndFlush(tomato);
-
-        RecipeIngredientRequest tomatoRequest =
-                new RecipeIngredientRequest();
-        tomatoRequest.setIngredientId(savedTomato.getId());
-        tomatoRequest.setQuantity(2.0);
-
-        RecipeRequest request = new RecipeRequest();
-        request.setName("Updated Recipe");
-        request.setDescription("Updated description");
-        request.setInstructions("Updated instructions");
-        request.setPreparationTime(20);
-        request.setCategory(RecipeCategory.ITALIAN);
-        request.setUserId(1L);
-        request.setIngredients(List.of(tomatoRequest));
+    void shouldReturn404WhenRecipeDoesNotExist() {
 
         ResponseEntity<String> response =
-                restTemplate.exchange(
-                        "/recipes/999",
-                        HttpMethod.PUT,
-                        new HttpEntity<>(request),
+                restTemplate.getForEntity(
+                        "/recipes/999999",
                         String.class
                 );
 
@@ -438,4 +240,559 @@ class RecipeControllerIntegrationTest {
         );
     }
 
+    @Test
+    void shouldGetAllRecipes() {
+
+        Recipe pasta = new Recipe();
+
+        pasta.setName("Pasta");
+        pasta.setDescription("Easy pasta");
+        pasta.setInstructions("Cook pasta.");
+        pasta.setPreparationTime(20);
+        pasta.setCategory(RecipeCategory.ITALIAN);
+        pasta.setUserId(1L);
+
+        recipeRepository.save(pasta);
+
+        Recipe pancakes = new Recipe();
+
+        pancakes.setName("Pancakes");
+        pancakes.setDescription("Simple pancakes");
+        pancakes.setInstructions("Mix and cook.");
+        pancakes.setPreparationTime(15);
+        pancakes.setCategory(RecipeCategory.BREAKFAST);
+        pancakes.setUserId(1L);
+
+        recipeRepository.save(pancakes);
+
+        ResponseEntity<String> response =
+                restTemplate.getForEntity(
+                        "/recipes",
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(response.getBody().contains("Pasta"));
+        assertTrue(response.getBody().contains("Pancakes"));
+    }
+
+    @Test
+    void shouldFilterRecipesByCategory() {
+
+        Recipe italian = new Recipe();
+
+        italian.setName("Pasta Carbonara");
+        italian.setDescription("Italian pasta");
+        italian.setInstructions("Cook pasta.");
+        italian.setPreparationTime(25);
+        italian.setCategory(RecipeCategory.ITALIAN);
+        italian.setUserId(1L);
+
+        recipeRepository.save(italian);
+
+        Recipe breakfast = new Recipe();
+
+        breakfast.setName("Pancakes");
+        breakfast.setDescription("Simple pancakes");
+        breakfast.setInstructions("Mix and cook.");
+        breakfast.setPreparationTime(15);
+        breakfast.setCategory(RecipeCategory.BREAKFAST);
+        breakfast.setUserId(1L);
+
+        recipeRepository.save(breakfast);
+
+        ResponseEntity<String> response =
+                restTemplate.getForEntity(
+                        "/recipes?category=ITALIAN",
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains("Pasta Carbonara")
+        );
+
+        assertFalse(
+                response.getBody().contains("Pancakes")
+        );
+    }
+
+    @Test
+    void shouldFilterRecipesByName() {
+
+        Recipe carbonara = new Recipe();
+
+        carbonara.setName("Pasta Carbonara");
+        carbonara.setDescription("Italian pasta");
+        carbonara.setInstructions("Cook pasta.");
+        carbonara.setPreparationTime(25);
+        carbonara.setCategory(RecipeCategory.ITALIAN);
+        carbonara.setUserId(1L);
+
+        recipeRepository.save(carbonara);
+
+        Recipe soup = new Recipe();
+
+        soup.setName("Tomato Soup");
+        soup.setDescription("Simple soup");
+        soup.setInstructions("Boil tomatoes.");
+        soup.setPreparationTime(30);
+        soup.setCategory(RecipeCategory.OTHER);
+        soup.setUserId(1L);
+
+        recipeRepository.save(soup);
+
+        ResponseEntity<String> response =
+                restTemplate.getForEntity(
+                        "/recipes?name=Pasta",
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains("Pasta Carbonara")
+        );
+
+        assertFalse(
+                response.getBody().contains("Tomato Soup")
+        );
+    }
+
+    @Test
+    void shouldFilterRecipesByMaxPreparationTime() {
+
+        Recipe quick = new Recipe();
+
+        quick.setName("Quick Pasta");
+        quick.setDescription("Fast meal");
+        quick.setInstructions("Cook quickly.");
+        quick.setPreparationTime(15);
+        quick.setCategory(RecipeCategory.ITALIAN);
+        quick.setUserId(1L);
+
+        recipeRepository.save(quick);
+
+        Recipe slow = new Recipe();
+
+        slow.setName("Slow Roast");
+        slow.setDescription("Long meal");
+        slow.setInstructions("Cook slowly.");
+        slow.setPreparationTime(90);
+        slow.setCategory(RecipeCategory.OTHER);
+        slow.setUserId(1L);
+
+        recipeRepository.save(slow);
+
+        ResponseEntity<String> response =
+                restTemplate.getForEntity(
+                        "/recipes?maxPreparationTime=30",
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains("Quick Pasta")
+        );
+
+        assertFalse(
+                response.getBody().contains("Slow Roast")
+        );
+    }
+
+    @Test
+    void shouldUpdateRecipe() {
+
+        Recipe recipe = new Recipe();
+
+        recipe.setName("Old Recipe");
+        recipe.setDescription("Old description");
+        recipe.setInstructions("Old instructions");
+        recipe.setPreparationTime(15);
+        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setUserId(1L);
+
+        recipe = recipeRepository.save(recipe);
+
+        RecipeIngredientRequest ingredientRequest =
+                createIngredientRequest(
+                        "Tomato",
+                        "pcs",
+                        2.0
+                );
+
+        UpdateRecipeRequest updateRequest =
+                new UpdateRecipeRequest();
+
+        updateRequest.setName("Updated Recipe");
+        updateRequest.setDescription(
+                "Updated description"
+        );
+        updateRequest.setInstructions(
+                "Updated instructions"
+        );
+        updateRequest.setPreparationTime(20);
+        updateRequest.setCategory(
+                RecipeCategory.ITALIAN
+        );
+        updateRequest.setIngredients(
+                List.of(ingredientRequest)
+        );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/recipes/" + recipe.getId(),
+                        HttpMethod.PUT,
+                        new HttpEntity<>(updateRequest),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains(
+                        "Updated Recipe"
+                )
+        );
+
+        Recipe updated =
+                recipeRepository
+                        .findById(recipe.getId())
+                        .orElseThrow();
+
+        assertEquals(
+                "Updated Recipe",
+                updated.getName()
+        );
+
+        assertEquals(
+                1L,
+                updated.getUserId()
+        );
+    }
+
+    @Test
+    void shouldDeleteRecipe() {
+
+        Recipe recipe = new Recipe();
+
+        recipe.setName("Recipe to delete");
+        recipe.setDescription("Description");
+        recipe.setInstructions("Instructions");
+        recipe.setPreparationTime(20);
+        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setUserId(1L);
+
+        recipe = recipeRepository.save(recipe);
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/recipes/" + recipe.getId(),
+                        HttpMethod.DELETE,
+                        null,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.NO_CONTENT,
+                response.getStatusCode()
+        );
+
+        assertFalse(
+                recipeRepository.existsById(recipe.getId())
+        );
+    }
+
+    @Test
+    void shouldReturn404WhenUpdatingNonExistingRecipe() {
+
+        RecipeIngredientRequest ingredientRequest =
+                createIngredientRequest(
+                        "Tomato",
+                        "pcs",
+                        2.0
+                );
+
+        UpdateRecipeRequest updateRequest =
+                new UpdateRecipeRequest();
+
+        updateRequest.setName("Updated Recipe");
+        updateRequest.setDescription(
+                "Updated description"
+        );
+        updateRequest.setInstructions(
+                "Updated instructions"
+        );
+        updateRequest.setPreparationTime(20);
+        updateRequest.setCategory(
+                RecipeCategory.ITALIAN
+        );
+        updateRequest.setIngredients(
+                List.of(ingredientRequest)
+        );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/recipes/999999",
+                        HttpMethod.PUT,
+                        new HttpEntity<>(updateRequest),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.NOT_FOUND,
+                response.getStatusCode()
+        );
+    }
+
+    @Test
+    void shouldReturn403WhenUserTriesToUpdateSomeoneElsesRecipe() {
+
+        Recipe recipe = new Recipe();
+
+        recipe.setName("Original Recipe");
+        recipe.setDescription("Original description");
+        recipe.setInstructions("Original instructions");
+        recipe.setPreparationTime(20);
+        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setUserId(2L);
+
+        recipe = recipeRepository.save(recipe);
+
+        RecipeIngredientRequest ingredientRequest =
+                createIngredientRequest(
+                        "Tomato",
+                        "pcs",
+                        2.0
+                );
+
+        UpdateRecipeRequest updateRequest =
+                new UpdateRecipeRequest();
+
+        updateRequest.setName("Hacked Recipe");
+        updateRequest.setDescription(
+                "Changed description"
+        );
+        updateRequest.setInstructions(
+                "Changed instructions"
+        );
+        updateRequest.setPreparationTime(25);
+        updateRequest.setCategory(
+                RecipeCategory.ITALIAN
+        );
+        updateRequest.setIngredients(
+                List.of(ingredientRequest)
+        );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/recipes/" + recipe.getId(),
+                        HttpMethod.PUT,
+                        new HttpEntity<>(updateRequest),
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.FORBIDDEN,
+                response.getStatusCode()
+        );
+
+        Recipe unchanged =
+                recipeRepository
+                        .findById(recipe.getId())
+                        .orElseThrow();
+
+        assertEquals(
+                "Original Recipe",
+                unchanged.getName()
+        );
+
+        assertEquals(
+                2L,
+                unchanged.getUserId()
+        );
+    }
+
+    @Test
+    void shouldReturn403WhenUserTriesToDeleteSomeoneElsesRecipe() {
+
+        Recipe recipe = new Recipe();
+
+        recipe.setName("Protected Recipe");
+        recipe.setDescription("Description");
+        recipe.setInstructions("Instructions");
+        recipe.setPreparationTime(20);
+        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setUserId(2L);
+
+        recipe = recipeRepository.save(recipe);
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/recipes/" + recipe.getId(),
+                        HttpMethod.DELETE,
+                        null,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.FORBIDDEN,
+                response.getStatusCode()
+        );
+
+        assertTrue(
+                recipeRepository.existsById(
+                        recipe.getId()
+                )
+        );
+    }
+
+    @Test
+    void shouldAllowAdminToUpdateSomeoneElsesRecipe() {
+
+        Recipe recipe = new Recipe();
+
+        recipe.setName("Original Recipe");
+        recipe.setDescription("Original description");
+        recipe.setInstructions("Original instructions");
+        recipe.setPreparationTime(20);
+        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setUserId(2L);
+
+        recipe = recipeRepository.save(recipe);
+
+        RecipeIngredientRequest ingredientRequest =
+                createIngredientRequest(
+                        "Tomato",
+                        "pcs",
+                        2.0
+                );
+
+        UpdateRecipeRequest updateRequest =
+                new UpdateRecipeRequest();
+
+        updateRequest.setName(
+                "Admin Updated Recipe"
+        );
+        updateRequest.setDescription(
+                "Admin changed description"
+        );
+        updateRequest.setInstructions(
+                "Admin changed instructions"
+        );
+        updateRequest.setPreparationTime(30);
+        updateRequest.setCategory(
+                RecipeCategory.ITALIAN
+        );
+        updateRequest.setIngredients(
+                List.of(ingredientRequest)
+        );
+
+        HttpEntity<UpdateRecipeRequest> requestEntity =
+                new HttpEntity<>(
+                        updateRequest,
+                        adminHeaders()
+                );
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/recipes/" + recipe.getId(),
+                        HttpMethod.PUT,
+                        requestEntity,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.OK,
+                response.getStatusCode()
+        );
+
+        assertNotNull(response.getBody());
+
+        assertTrue(
+                response.getBody().contains(
+                        "Admin Updated Recipe"
+                )
+        );
+
+        Recipe updated =
+                recipeRepository
+                        .findById(recipe.getId())
+                        .orElseThrow();
+
+        assertEquals(
+                "Admin Updated Recipe",
+                updated.getName()
+        );
+
+        assertEquals(
+                2L,
+                updated.getUserId()
+        );
+    }
+
+    @Test
+    void shouldAllowAdminToDeleteSomeoneElsesRecipe() {
+
+        Recipe recipe = new Recipe();
+
+        recipe.setName("Recipe for Admin Delete");
+        recipe.setDescription("Description");
+        recipe.setInstructions("Instructions");
+        recipe.setPreparationTime(20);
+        recipe.setCategory(RecipeCategory.ITALIAN);
+        recipe.setUserId(2L);
+
+        recipe = recipeRepository.save(recipe);
+
+        HttpEntity<Void> requestEntity =
+                new HttpEntity<>(adminHeaders());
+
+        ResponseEntity<String> response =
+                restTemplate.exchange(
+                        "/recipes/" + recipe.getId(),
+                        HttpMethod.DELETE,
+                        requestEntity,
+                        String.class
+                );
+
+        assertEquals(
+                HttpStatus.NO_CONTENT,
+                response.getStatusCode()
+        );
+
+        assertFalse(
+                recipeRepository.existsById(
+                        recipe.getId()
+                )
+        );
+    }
 }

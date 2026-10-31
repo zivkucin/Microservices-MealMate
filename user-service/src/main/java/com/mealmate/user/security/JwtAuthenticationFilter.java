@@ -45,6 +45,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         String username = jwtService.extractUsername(token);
+        Long userId = jwtService.extractUserId(token);
         String role = jwtService.extractRole(token);
 
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
@@ -61,8 +62,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     );
 
             authentication.setDetails(
-                    new WebAuthenticationDetailsSource()
-                            .buildDetails(request)
+                    new JwtUserDetails(
+                            userId,
+                            username,
+                            role
+                    )
             );
 
             SecurityContextHolder.getContext()

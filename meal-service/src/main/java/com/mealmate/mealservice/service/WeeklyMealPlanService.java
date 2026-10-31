@@ -93,6 +93,7 @@ public class WeeklyMealPlanService {
 
     @Transactional(readOnly = true)
     public WeeklyMealPlanResponse getWeeklyMealPlan(
+            Long userId,
             Long weeklyMealPlanId
     ) {
         WeeklyMealPlan plan =
@@ -102,6 +103,12 @@ public class WeeklyMealPlanService {
                                         "Weekly meal plan not found."
                                 )
                         );
+
+        if (!plan.getUserId().equals(userId)) {
+            throw new InvalidMealPlanException(
+                    "You are not allowed to access this weekly meal plan."
+            );
+        }
 
         return weeklyMealPlanMapper.toResponse(plan);
     }

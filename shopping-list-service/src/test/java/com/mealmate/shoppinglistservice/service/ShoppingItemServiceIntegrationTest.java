@@ -4,13 +4,13 @@ import com.mealmate.shoppinglistservice.dto.AddShoppingItemRequest;
 import com.mealmate.shoppinglistservice.dto.CreateShoppingListRequest;
 import com.mealmate.shoppinglistservice.dto.ShoppingItemResponse;
 import com.mealmate.shoppinglistservice.dto.ShoppingListResponse;
+import com.mealmate.shoppinglistservice.dto.UpdateShoppingItemRequest;
 import com.mealmate.shoppinglistservice.entity.MeasurementUnit;
 import com.mealmate.shoppinglistservice.exception.ShoppingItemNotFoundException;
 import com.mealmate.shoppinglistservice.exception.ShoppingListNotFoundException;
 import com.mealmate.shoppinglistservice.repository.ShoppingItemRepository;
 import com.mealmate.shoppinglistservice.repository.ShoppingListRepository;
 import org.junit.jupiter.api.BeforeEach;
-import com.mealmate.shoppinglistservice.dto.UpdateShoppingItemRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,6 +28,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 class ShoppingItemServiceIntegrationTest {
 
+    private static final Long USER_ID = 1L;
+
     @Container
     static PostgreSQLContainer postgres =
             new PostgreSQLContainer("postgres:16")
@@ -36,10 +38,21 @@ class ShoppingItemServiceIntegrationTest {
                     .withPassword("postgres");
 
     @DynamicPropertySource
-    static void configureDatabase(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
+    static void configureDatabase(
+            DynamicPropertyRegistry registry
+    ) {
+        registry.add(
+                "spring.datasource.url",
+                postgres::getJdbcUrl
+        );
+        registry.add(
+                "spring.datasource.username",
+                postgres::getUsername
+        );
+        registry.add(
+                "spring.datasource.password",
+                postgres::getPassword
+        );
     }
 
     @Autowired
@@ -60,16 +73,20 @@ class ShoppingItemServiceIntegrationTest {
         shoppingListRepository.deleteAll();
     }
 
+    private ShoppingListResponse createShoppingList() {
+        return shoppingListService.createShoppingList(
+                USER_ID,
+                new CreateShoppingListRequest(
+                        LocalDate.of(2026, 9, 14)
+                )
+        );
+    }
+
     @Test
     void shouldAddShoppingItemSuccessfully() {
 
         ShoppingListResponse shoppingList =
-                shoppingListService.createShoppingList(
-                        new CreateShoppingListRequest(
-                                1L,
-                                LocalDate.of(2026, 9, 14)
-                        )
-                );
+                createShoppingList();
 
         AddShoppingItemRequest request =
                 new AddShoppingItemRequest(
@@ -80,6 +97,7 @@ class ShoppingItemServiceIntegrationTest {
 
         ShoppingItemResponse response =
                 shoppingItemService.addShoppingItem(
+                        USER_ID,
                         shoppingList.shoppingListId(),
                         request
                 );
@@ -97,16 +115,12 @@ class ShoppingItemServiceIntegrationTest {
     void shouldMergeCompatibleUnits() {
 
         ShoppingListResponse shoppingList =
-                shoppingListService.createShoppingList(
-                        new CreateShoppingListRequest(
-                                1L,
-                                LocalDate.of(2026, 9, 14)
-                        )
-                );
+                createShoppingList();
 
         Long listId = shoppingList.shoppingListId();
 
         shoppingItemService.addShoppingItem(
+                USER_ID,
                 listId,
                 new AddShoppingItemRequest(
                         "Rice",
@@ -117,6 +131,7 @@ class ShoppingItemServiceIntegrationTest {
 
         ShoppingItemResponse response =
                 shoppingItemService.addShoppingItem(
+                        USER_ID,
                         listId,
                         new AddShoppingItemRequest(
                                 "Rice",
@@ -136,16 +151,12 @@ class ShoppingItemServiceIntegrationTest {
     void shouldCreateSeparateItemForIncompatibleUnits() {
 
         ShoppingListResponse shoppingList =
-                shoppingListService.createShoppingList(
-                        new CreateShoppingListRequest(
-                                1L,
-                                LocalDate.of(2026, 9, 14)
-                        )
-                );
+                createShoppingList();
 
         Long listId = shoppingList.shoppingListId();
 
         shoppingItemService.addShoppingItem(
+                USER_ID,
                 listId,
                 new AddShoppingItemRequest(
                         "Rice",
@@ -155,6 +166,7 @@ class ShoppingItemServiceIntegrationTest {
         );
 
         shoppingItemService.addShoppingItem(
+                USER_ID,
                 listId,
                 new AddShoppingItemRequest(
                         "Rice",
@@ -179,7 +191,33 @@ class ShoppingItemServiceIntegrationTest {
         assertThrows(
                 ShoppingListNotFoundException.class,
                 () -> shoppingItemService.addShoppingItem(
+                        USER_ID,
                         999L,
+                        request
+                )
+        );
+
+        assertEquals(0, shoppingItemRepository.count());
+    }
+
+    @Test
+    void shouldRejectAnotherUserAddingItemToShoppingList() {
+
+        ShoppingListResponse shoppingList =
+                createShoppingList();
+
+        AddShoppingItemRequest request =
+                new AddShoppingItemRequest(
+                        "Rice",
+                        500.0,
+                        MeasurementUnit.GRAM
+                );
+
+        assertThrows(
+                ShoppingListNotFoundException.class,
+                () -> shoppingItemService.addShoppingItem(
+                        3L,
+                        shoppingList.shoppingListId(),
                         request
                 )
         );
@@ -191,17 +229,13 @@ class ShoppingItemServiceIntegrationTest {
     void shouldDeleteShoppingItemSuccessfully() {
 
         ShoppingListResponse shoppingList =
-                shoppingListService.createShoppingList(
-                        new CreateShoppingListRequest(
-                                1L,
-                                LocalDate.of(2026, 9, 14)
-                        )
-                );
+                createShoppingList();
 
         Long listId = shoppingList.shoppingListId();
 
         ShoppingItemResponse item =
                 shoppingItemService.addShoppingItem(
+                        USER_ID,
                         listId,
                         new AddShoppingItemRequest(
                                 "Rice",
@@ -211,6 +245,7 @@ class ShoppingItemServiceIntegrationTest {
                 );
 
         shoppingItemService.deleteShoppingItem(
+                USER_ID,
                 listId,
                 item.shoppingItemId()
         );
@@ -220,6 +255,7 @@ class ShoppingItemServiceIntegrationTest {
         assertThrows(
                 ShoppingItemNotFoundException.class,
                 () -> shoppingItemService.deleteShoppingItem(
+                        USER_ID,
                         listId,
                         item.shoppingItemId()
                 )
@@ -230,17 +266,13 @@ class ShoppingItemServiceIntegrationTest {
     void shouldUpdateShoppingItemSuccessfully() {
 
         ShoppingListResponse shoppingList =
-                shoppingListService.createShoppingList(
-                        new CreateShoppingListRequest(
-                                1L,
-                                LocalDate.of(2026, 9, 14)
-                        )
-                );
+                createShoppingList();
 
         Long listId = shoppingList.shoppingListId();
 
         ShoppingItemResponse item =
                 shoppingItemService.addShoppingItem(
+                        USER_ID,
                         listId,
                         new AddShoppingItemRequest(
                                 "Rice",
@@ -258,12 +290,16 @@ class ShoppingItemServiceIntegrationTest {
 
         ShoppingItemResponse updated =
                 shoppingItemService.updateShoppingItem(
+                        USER_ID,
                         listId,
                         item.shoppingItemId(),
                         updateRequest
                 );
 
-        assertEquals(item.shoppingItemId(), updated.shoppingItemId());
+        assertEquals(
+                item.shoppingItemId(),
+                updated.shoppingItemId()
+        );
         assertEquals("Brown Rice", updated.name());
         assertEquals(750.0, updated.quantity());
         assertEquals(MeasurementUnit.GRAM, updated.unit());
@@ -273,17 +309,13 @@ class ShoppingItemServiceIntegrationTest {
     void shouldUpdatePurchaseStatusSuccessfully() {
 
         ShoppingListResponse shoppingList =
-                shoppingListService.createShoppingList(
-                        new CreateShoppingListRequest(
-                                1L,
-                                LocalDate.of(2026, 9, 14)
-                        )
-                );
+                createShoppingList();
 
         Long listId = shoppingList.shoppingListId();
 
         ShoppingItemResponse item =
                 shoppingItemService.addShoppingItem(
+                        USER_ID,
                         listId,
                         new AddShoppingItemRequest(
                                 "Rice",
@@ -296,12 +328,16 @@ class ShoppingItemServiceIntegrationTest {
 
         ShoppingItemResponse purchased =
                 shoppingItemService.updatePurchaseStatus(
+                        USER_ID,
                         listId,
                         item.shoppingItemId(),
                         true
                 );
 
         assertTrue(purchased.purchased());
-        assertEquals(item.shoppingItemId(), purchased.shoppingItemId());
+        assertEquals(
+                item.shoppingItemId(),
+                purchased.shoppingItemId()
+        );
     }
 }

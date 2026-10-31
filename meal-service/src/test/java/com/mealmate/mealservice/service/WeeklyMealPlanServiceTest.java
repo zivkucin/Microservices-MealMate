@@ -36,10 +36,25 @@ class WeeklyMealPlanServiceTest {
     @InjectMocks
     private WeeklyMealPlanService weeklyMealPlanService;
 
+    private WeeklyMealPlan weeklyMealPlan;
+
+    @BeforeEach
+    void setUp() {
+
+        weeklyMealPlan = new WeeklyMealPlan();
+
+        weeklyMealPlan.setWeeklyMealPlanId(2L);
+        weeklyMealPlan.setUserId(1L);
+        weeklyMealPlan.setWeekStartDate(
+                LocalDate.of(2026, 9, 14)
+        );
+    }
+
     @Test
     void shouldCreateWeeklyMealPlanWith35Slots() {
 
         Long userId = 1L;
+
         LocalDate monday =
                 LocalDate.of(2026, 9, 7);
 
@@ -50,7 +65,8 @@ class WeeklyMealPlanServiceTest {
         savedPlan.setUserId(userId);
         savedPlan.setWeekStartDate(monday);
 
-        List<PlannedMeal> plannedMeals = new java.util.ArrayList<>();
+        List<PlannedMeal> plannedMeals =
+                new java.util.ArrayList<>();
 
         for (int mealSlotId = 1;
              mealSlotId <= 35;
@@ -110,9 +126,9 @@ class WeeklyMealPlanServiceTest {
                                 .toList()
                 );
 
-        when(weeklyMealPlanMapper.toResponse(any(
-                WeeklyMealPlan.class
-        )))
+        when(weeklyMealPlanMapper.toResponse(
+                any(WeeklyMealPlan.class)
+        ))
                 .thenReturn(expectedResponse);
 
         WeeklyMealPlanResponse result =
@@ -217,6 +233,90 @@ class WeeklyMealPlanServiceTest {
                 weeklyMealPlanRepository,
                 never()
         ).save(any(WeeklyMealPlan.class));
+
+        verifyNoInteractions(weeklyMealPlanMapper);
+    }
+
+    @Test
+    void shouldGetOwnWeeklyMealPlan() {
+
+        Long userId = 1L;
+        Long weeklyMealPlanId = 2L;
+
+        WeeklyMealPlanResponse expectedResponse =
+                new WeeklyMealPlanResponse(
+                        weeklyMealPlanId,
+                        userId,
+                        weeklyMealPlan.getWeekStartDate(),
+                        LocalDateTime.now(),
+                        LocalDateTime.now(),
+                        List.of()
+                );
+
+        when(weeklyMealPlanRepository
+                .findById(weeklyMealPlanId))
+                .thenReturn(Optional.of(weeklyMealPlan));
+
+        when(weeklyMealPlanMapper.toResponse(weeklyMealPlan))
+                .thenReturn(expectedResponse);
+
+        WeeklyMealPlanResponse result =
+                weeklyMealPlanService.getWeeklyMealPlan(
+                        userId,
+                        weeklyMealPlanId
+                );
+
+        assertNotNull(result);
+
+        assertEquals(
+                weeklyMealPlanId,
+                result.weeklyMealPlanId()
+        );
+
+        assertEquals(
+                userId,
+                result.userId()
+        );
+
+        assertEquals(
+                weeklyMealPlan.getWeekStartDate(),
+                result.weekStartDate()
+        );
+
+        verify(weeklyMealPlanRepository)
+                .findById(weeklyMealPlanId);
+
+        verify(weeklyMealPlanMapper)
+                .toResponse(weeklyMealPlan);
+    }
+
+    @Test
+    void shouldRejectAccessToAnotherUsersWeeklyMealPlan() {
+
+        Long anotherUserId = 999L;
+        Long weeklyMealPlanId = 2L;
+
+        when(weeklyMealPlanRepository
+                .findById(weeklyMealPlanId))
+                .thenReturn(Optional.of(weeklyMealPlan));
+
+        InvalidMealPlanException exception =
+                assertThrows(
+                        InvalidMealPlanException.class,
+                        () -> weeklyMealPlanService
+                                .getWeeklyMealPlan(
+                                        anotherUserId,
+                                        weeklyMealPlanId
+                                )
+                );
+
+        assertEquals(
+                "You are not allowed to access this weekly meal plan.",
+                exception.getMessage()
+        );
+
+        verify(weeklyMealPlanRepository)
+                .findById(weeklyMealPlanId);
 
         verifyNoInteractions(weeklyMealPlanMapper);
     }

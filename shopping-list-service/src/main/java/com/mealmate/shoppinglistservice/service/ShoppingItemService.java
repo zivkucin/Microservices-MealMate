@@ -1,19 +1,19 @@
 package com.mealmate.shoppinglistservice.service;
 
+import com.mealmate.shoppinglistservice.dto.AddShoppingItemRequest;
+import com.mealmate.shoppinglistservice.dto.ShoppingItemResponse;
+import com.mealmate.shoppinglistservice.dto.UpdateShoppingItemRequest;
 import com.mealmate.shoppinglistservice.entity.MeasurementUnit;
+import com.mealmate.shoppinglistservice.entity.ShoppingItem;
+import com.mealmate.shoppinglistservice.entity.ShoppingList;
+import com.mealmate.shoppinglistservice.exception.ShoppingItemNotFoundException;
+import com.mealmate.shoppinglistservice.exception.ShoppingListNotFoundException;
 import com.mealmate.shoppinglistservice.mapper.ShoppingItemMapper;
 import com.mealmate.shoppinglistservice.repository.ShoppingItemRepository;
 import com.mealmate.shoppinglistservice.repository.ShoppingListRepository;
 import com.mealmate.shoppinglistservice.util.MeasurementUnitConverter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import com.mealmate.shoppinglistservice.dto.AddShoppingItemRequest;
-import com.mealmate.shoppinglistservice.dto.ShoppingItemResponse;
-import com.mealmate.shoppinglistservice.entity.ShoppingItem;
-import com.mealmate.shoppinglistservice.entity.ShoppingList;
-import com.mealmate.shoppinglistservice.dto.UpdateShoppingItemRequest;
-import com.mealmate.shoppinglistservice.exception.ShoppingItemNotFoundException;
-import com.mealmate.shoppinglistservice.exception.ShoppingListNotFoundException;
 
 @Service
 @RequiredArgsConstructor
@@ -24,43 +24,48 @@ public class ShoppingItemService {
     private final ShoppingItemMapper shoppingItemMapper;
 
     public ShoppingItemResponse addShoppingItem(
+            Long userId,
             Long shoppingListId,
             AddShoppingItemRequest request
     ) {
 
-        ShoppingList shoppingList = shoppingListRepository.findById(shoppingListId)
-                .orElseThrow(() -> new ShoppingListNotFoundException(
-                        "Shopping list not found with id: " + shoppingListId
-                ));
+        ShoppingList shoppingList =
+                findAndValidateShoppingList(userId, shoppingListId);
 
-        var existingItems = shoppingItemRepository
-                .findAllByShoppingListShoppingListIdAndName(
-                        shoppingListId,
-                        request.name()
-                );
+        var existingItems =
+                shoppingItemRepository
+                        .findAllByShoppingListShoppingListIdAndName(
+                                shoppingListId,
+                                request.name()
+                        );
 
         var compatibleItem = existingItems.stream()
-                .filter(item -> MeasurementUnitConverter.areCompatible(
-                        item.getUnit(),
-                        request.unit()
-                ))
+                .filter(item ->
+                        MeasurementUnitConverter.areCompatible(
+                                item.getUnit(),
+                                request.unit()
+                        )
+                )
                 .findFirst();
 
         if (compatibleItem.isPresent()) {
 
             ShoppingItem item = compatibleItem.get();
 
-            double existingBaseQuantity = MeasurementUnitConverter.toBaseUnit(
-                    item.getQuantity(),
-                    item.getUnit()
-            );
+            double existingBaseQuantity =
+                    MeasurementUnitConverter.toBaseUnit(
+                            item.getQuantity(),
+                            item.getUnit()
+                    );
 
-            double newBaseQuantity = MeasurementUnitConverter.toBaseUnit(
-                    request.quantity(),
-                    request.unit()
-            );
+            double newBaseQuantity =
+                    MeasurementUnitConverter.toBaseUnit(
+                            request.quantity(),
+                            request.unit()
+                    );
 
-            double totalBaseQuantity = existingBaseQuantity + newBaseQuantity;
+            double totalBaseQuantity =
+                    existingBaseQuantity + newBaseQuantity;
 
             MeasurementUnit displayUnit =
                     MeasurementUnitConverter.getDisplayUnit(
@@ -83,7 +88,9 @@ public class ShoppingItemService {
             );
         }
 
-        ShoppingItem newItem = shoppingItemMapper.toEntity(request);
+        ShoppingItem newItem =
+                shoppingItemMapper.toEntity(request);
+
         newItem.setShoppingList(shoppingList);
 
         return shoppingItemMapper.toResponse(
@@ -92,24 +99,30 @@ public class ShoppingItemService {
     }
 
     public ShoppingItemResponse updateShoppingItem(
+            Long userId,
             Long shoppingListId,
             Long shoppingItemId,
             UpdateShoppingItemRequest request
     ) {
 
-        shoppingListRepository.findById(shoppingListId)
-                .orElseThrow(() -> new ShoppingListNotFoundException(
-                        "Shopping list not found with id: " + shoppingListId
-                ));
+        findAndValidateShoppingList(userId, shoppingListId);
 
-        ShoppingItem item = shoppingItemRepository.findById(shoppingItemId)
-                .orElseThrow(() -> new ShoppingItemNotFoundException(
-                        "Shopping item not found with id: " + shoppingItemId
-                ));
+        ShoppingItem item =
+                shoppingItemRepository.findById(shoppingItemId)
+                        .orElseThrow(() ->
+                                new ShoppingItemNotFoundException(
+                                        "Shopping item not found with id: "
+                                                + shoppingItemId
+                                )
+                        );
 
-        if (!item.getShoppingList().getShoppingListId().equals(shoppingListId)) {
+        if (!item.getShoppingList()
+                .getShoppingListId()
+                .equals(shoppingListId)) {
+
             throw new ShoppingItemNotFoundException(
-                    "Shopping item not found in shopping list with id: " + shoppingListId
+                    "Shopping item not found in shopping list with id: "
+                            + shoppingListId
             );
         }
 
@@ -121,18 +134,29 @@ public class ShoppingItemService {
     }
 
     public void deleteShoppingItem(
+            Long userId,
             Long shoppingListId,
             Long shoppingItemId
     ) {
 
-        ShoppingItem item = shoppingItemRepository.findById(shoppingItemId)
-                .orElseThrow(() -> new ShoppingItemNotFoundException(
-                        "Shopping item not found with id: " + shoppingItemId
-                ));
+        findAndValidateShoppingList(userId, shoppingListId);
 
-        if (!item.getShoppingList().getShoppingListId().equals(shoppingListId)) {
+        ShoppingItem item =
+                shoppingItemRepository.findById(shoppingItemId)
+                        .orElseThrow(() ->
+                                new ShoppingItemNotFoundException(
+                                        "Shopping item not found with id: "
+                                                + shoppingItemId
+                                )
+                        );
+
+        if (!item.getShoppingList()
+                .getShoppingListId()
+                .equals(shoppingListId)) {
+
             throw new ShoppingItemNotFoundException(
-                    "Shopping item not found in shopping list with id: " + shoppingListId
+                    "Shopping item not found in shopping list with id: "
+                            + shoppingListId
             );
         }
 
@@ -140,19 +164,30 @@ public class ShoppingItemService {
     }
 
     public ShoppingItemResponse updatePurchaseStatus(
+            Long userId,
             Long shoppingListId,
             Long shoppingItemId,
             boolean purchased
     ) {
 
-        ShoppingItem item = shoppingItemRepository.findById(shoppingItemId)
-                .orElseThrow(() -> new ShoppingItemNotFoundException(
-                        "Shopping item not found with id: " + shoppingItemId
-                ));
+        findAndValidateShoppingList(userId, shoppingListId);
 
-        if (!item.getShoppingList().getShoppingListId().equals(shoppingListId)) {
+        ShoppingItem item =
+                shoppingItemRepository.findById(shoppingItemId)
+                        .orElseThrow(() ->
+                                new ShoppingItemNotFoundException(
+                                        "Shopping item not found with id: "
+                                                + shoppingItemId
+                                )
+                        );
+
+        if (!item.getShoppingList()
+                .getShoppingListId()
+                .equals(shoppingListId)) {
+
             throw new ShoppingItemNotFoundException(
-                    "Shopping item not found in shopping list with id: " + shoppingListId
+                    "Shopping item not found in shopping list with id: "
+                            + shoppingListId
             );
         }
 
@@ -163,5 +198,27 @@ public class ShoppingItemService {
         );
     }
 
+    private ShoppingList findAndValidateShoppingList(
+            Long userId,
+            Long shoppingListId
+    ) {
 
+        ShoppingList shoppingList =
+                shoppingListRepository.findById(shoppingListId)
+                        .orElseThrow(() ->
+                                new ShoppingListNotFoundException(
+                                        "Shopping list not found with id: "
+                                                + shoppingListId
+                                )
+                        );
+
+        if (!shoppingList.getUserId().equals(userId)) {
+            throw new ShoppingListNotFoundException(
+                    "Shopping list not found with id: "
+                            + shoppingListId
+            );
+        }
+
+        return shoppingList;
+    }
 }

@@ -2,6 +2,7 @@ package com.mealmate.shoppinglistservice.controller;
 
 import com.mealmate.shoppinglistservice.dto.CreateShoppingListRequest;
 import com.mealmate.shoppinglistservice.dto.ShoppingListResponse;
+import com.mealmate.shoppinglistservice.security.SecurityUtils;
 import com.mealmate.shoppinglistservice.service.ShoppingListService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
@@ -18,14 +19,19 @@ public class ShoppingListController {
 
     @Operation(
             summary = "Create a shopping list",
-            description = "Creates a new shopping list for a user and a specific week."
+            description = "Creates a new shopping list for the authenticated user and a specific week."
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ShoppingListResponse createShoppingList(
             @Valid @RequestBody CreateShoppingListRequest request
     ) {
-        return shoppingListService.createShoppingList(request);
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
+        return shoppingListService.createShoppingList(
+                currentUserId,
+                request
+        );
     }
 
     @Operation(
@@ -36,7 +42,11 @@ public class ShoppingListController {
     public ShoppingListResponse getShoppingListById(
             @PathVariable Long shoppingListId
     ) {
-        return shoppingListService.getShoppingListById(shoppingListId);
-    }
+        Long currentUserId = SecurityUtils.getCurrentUserId();
 
+        return shoppingListService.getShoppingListById(
+                currentUserId,
+                shoppingListId
+        );
+    }
 }

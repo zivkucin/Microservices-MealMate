@@ -12,6 +12,7 @@ import org.mapstruct.MappingTarget;
 public interface ReviewMapper {
 
     @Mapping(target = "reviewId", ignore = true)
+    @Mapping(target = "userId", ignore = true)
     @Mapping(target = "recipeId", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
     @Mapping(target = "updatedAt", ignore = true)

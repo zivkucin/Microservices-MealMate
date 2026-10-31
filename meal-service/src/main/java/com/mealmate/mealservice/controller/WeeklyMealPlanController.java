@@ -5,6 +5,7 @@ import com.mealmate.mealservice.dto.WeeklyMealPlanResponse;
 import com.mealmate.mealservice.service.WeeklyMealPlanService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
+import com.mealmate.mealservice.security.SecurityUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,8 +30,10 @@ public class WeeklyMealPlanController {
     public WeeklyMealPlanResponse createWeeklyMealPlan(
             @Valid @RequestBody CreateWeeklyMealPlanRequest request
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         return weeklyMealPlanService.createWeeklyMealPlan(
-                request.userId(),
+                currentUserId,
                 request.weekStartDate()
         );
     }
@@ -43,7 +46,10 @@ public class WeeklyMealPlanController {
     public WeeklyMealPlanResponse getWeeklyMealPlan(
             @PathVariable Long weeklyMealPlanId
     ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+
         return weeklyMealPlanService.getWeeklyMealPlan(
+                currentUserId,
                 weeklyMealPlanId
         );
     }

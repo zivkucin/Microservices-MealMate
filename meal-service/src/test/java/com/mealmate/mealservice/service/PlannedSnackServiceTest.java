@@ -115,6 +115,7 @@ class PlannedSnackServiceTest {
 
         PlannedSnackResponse result =
                 plannedSnackService.addSnackToMeal(
+                        1L,
                         2L,
                         38L,
                         request
@@ -172,6 +173,7 @@ class PlannedSnackServiceTest {
 
         PlannedSnackResponse result =
                 plannedSnackService.addSnackToMeal(
+                        1L,
                         2L,
                         38L,
                         new AddSnackToMealRequest(
@@ -201,6 +203,7 @@ class PlannedSnackServiceTest {
                 assertThrows(
                         InvalidMealPlanException.class,
                         () -> plannedSnackService.addSnackToMeal(
+                                1L,
                                 999L,
                                 38L,
                                 new AddSnackToMealRequest(
@@ -213,6 +216,38 @@ class PlannedSnackServiceTest {
 
         assertEquals(
                 "Planned meal does not belong to this weekly meal plan.",
+                exception.getMessage()
+        );
+
+        verify(plannedSnackRepository, never())
+                .save(any(PlannedSnack.class));
+
+        verifyNoInteractions(plannedSnackMapper);
+    }
+
+    @Test
+    void shouldRejectMealFromAnotherUser() {
+
+        when(plannedMealRepository.findById(38L))
+                .thenReturn(Optional.of(plannedMeal));
+
+        InvalidMealPlanException exception =
+                assertThrows(
+                        InvalidMealPlanException.class,
+                        () -> plannedSnackService.addSnackToMeal(
+                                999L,
+                                2L,
+                                38L,
+                                new AddSnackToMealRequest(
+                                        1L,
+                                        2.0,
+                                        MeasurementUnit.PIECE
+                                )
+                        )
+                );
+
+        assertEquals(
+                "You are not allowed to access this weekly meal plan.",
                 exception.getMessage()
         );
 
@@ -236,6 +271,7 @@ class PlannedSnackServiceTest {
                 assertThrows(
                         RecipeAlreadyAssignedException.class,
                         () -> plannedSnackService.addSnackToMeal(
+                                1L,
                                 2L,
                                 38L,
                                 new AddSnackToMealRequest(
@@ -274,6 +310,7 @@ class PlannedSnackServiceTest {
                 assertThrows(
                         SnackNotFoundException.class,
                         () -> plannedSnackService.addSnackToMeal(
+                                1L,
                                 2L,
                                 38L,
                                 new AddSnackToMealRequest(
@@ -313,6 +350,7 @@ class PlannedSnackServiceTest {
                 .thenReturn(Optional.of(plannedSnack));
 
         plannedSnackService.removeSnackFromMeal(
+                1L,
                 2L,
                 38L,
                 1L

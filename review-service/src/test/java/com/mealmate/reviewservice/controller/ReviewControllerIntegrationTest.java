@@ -4,18 +4,27 @@ import com.mealmate.reviewservice.client.RecipeClient;
 import com.mealmate.reviewservice.dto.RecipeResponse;
 import com.mealmate.reviewservice.entity.Review;
 import com.mealmate.reviewservice.repository.ReviewRepository;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
+
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.util.Date;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -44,11 +53,13 @@ class ReviewControllerIntegrationTest {
     @MockitoBean
     private RecipeClient recipeClient;
 
+    @Value("${jwt.secret}")
+    private String jwtSecret;
+
     @BeforeEach
     void cleanDatabase() {
         reviewRepository.deleteAll();
     }
-
 
     // =========================================================
     // CREATE
@@ -68,16 +79,17 @@ class ReviewControllerIntegrationTest {
 
         String requestBody = """
                 {
-                    "userId": 2,
                     "rating": 5,
                     "comment": "Odlican recept!"
                 }
                 """;
 
         mockMvc.perform(
-                        post("/recipes/{recipeId}/reviews", 1L)
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
+                        authenticated(
+                                post("/recipes/{recipeId}/reviews", 1L)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(requestBody)
+                        )
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewId").isNumber())
@@ -90,27 +102,26 @@ class ReviewControllerIntegrationTest {
                 .andExpect(jsonPath("$.updatedAt").exists());
     }
 
-
     @Test
     void createReview_withInvalidRating_shouldReturnBadRequest()
             throws Exception {
 
         String requestBody = """
                 {
-                    "userId": 2,
                     "rating": 6,
                     "comment": "Neispravna ocena"
                 }
                 """;
 
         mockMvc.perform(
-                        post("/recipes/{recipeId}/reviews", 1L)
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
+                        authenticated(
+                                post("/recipes/{recipeId}/reviews", 1L)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(requestBody)
+                        )
                 )
                 .andExpect(status().isBadRequest());
     }
-
 
     @Test
     void createReview_withDuplicateReview_shouldReturnConflict()
@@ -136,20 +147,20 @@ class ReviewControllerIntegrationTest {
 
         String requestBody = """
                 {
-                    "userId": 2,
                     "rating": 4,
                     "comment": "Drugi komentar"
                 }
                 """;
 
         mockMvc.perform(
-                        post("/recipes/{recipeId}/reviews", 1L)
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
+                        authenticated(
+                                post("/recipes/{recipeId}/reviews", 1L)
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(requestBody)
+                        )
                 )
                 .andExpect(status().isConflict());
     }
-
 
     // =========================================================
     // GET BY ID
@@ -168,7 +179,10 @@ class ReviewControllerIntegrationTest {
         );
 
         mockMvc.perform(
-                        get("/reviews/{reviewId}", review.getReviewId())
+                        authenticated(
+                                get("/reviews/{reviewId}",
+                                        review.getReviewId())
+                        )
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewId")
@@ -179,7 +193,6 @@ class ReviewControllerIntegrationTest {
                 .andExpect(jsonPath("$.comment")
                         .value("Odlican recept!"));
     }
-
 
     // =========================================================
     // GET BY RECIPE
@@ -217,13 +230,14 @@ class ReviewControllerIntegrationTest {
         );
 
         mockMvc.perform(
-                        get("/recipes/{recipeId}/reviews", 1L)
+                        authenticated(
+                                get("/recipes/{recipeId}/reviews", 1L)
+                        )
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(2));
     }
-
 
     // =========================================================
     // SUMMARY
@@ -261,7 +275,9 @@ class ReviewControllerIntegrationTest {
         );
 
         mockMvc.perform(
-                        get("/recipes/{recipeId}/reviews/summary", 1L)
+                        authenticated(
+                                get("/recipes/{recipeId}/reviews/summary", 1L)
+                        )
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.recipeId").value(1))
@@ -274,7 +290,6 @@ class ReviewControllerIntegrationTest {
                 .andExpect(jsonPath("$.twoStars").value(0))
                 .andExpect(jsonPath("$.oneStar").value(0));
     }
-
 
     // =========================================================
     // UPDATE
@@ -300,10 +315,12 @@ class ReviewControllerIntegrationTest {
                 """;
 
         mockMvc.perform(
-                        put("/reviews/{reviewId}", review.getReviewId())
-                                .param("userId", "2")
-                                .contentType(MediaType.APPLICATION_JSON)
-                                .content(requestBody)
+                        authenticated(
+                                put("/reviews/{reviewId}",
+                                        review.getReviewId())
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(requestBody)
+                        )
                 )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.reviewId")
@@ -314,7 +331,6 @@ class ReviewControllerIntegrationTest {
                 .andExpect(jsonPath("$.comment")
                         .value("Novi komentar"));
     }
-
 
     // =========================================================
     // DELETE
@@ -334,23 +350,59 @@ class ReviewControllerIntegrationTest {
         );
 
         mockMvc.perform(
-                        delete("/reviews/{reviewId}",
-                                review.getReviewId())
-                                .param("userId", "2")
+                        authenticated(
+                                delete("/reviews/{reviewId}",
+                                        review.getReviewId())
+                        )
                 )
                 .andExpect(status().isNoContent());
     }
 
+    // =========================================================
+    // HELPERS
+    // =========================================================
 
-    // =========================================================
-    // HELPER
-    // =========================================================
+    private MockHttpServletRequestBuilder authenticated(
+            MockHttpServletRequestBuilder request
+    ) {
+
+        return request.header(
+                HttpHeaders.AUTHORIZATION,
+                "Bearer " + generateTestToken(2L, "USER")
+        );
+    }
+
+    private String generateTestToken(
+            Long userId,
+            String role
+    ) {
+
+        SecretKey key = Keys.hmacShaKeyFor(
+                jwtSecret.getBytes(StandardCharsets.UTF_8)
+        );
+
+        Date now = new Date();
+
+        return Jwts.builder()
+                .subject("test-" + role.toLowerCase())
+                .claim("userId", userId)
+                .claim("role", role)
+                .issuedAt(now)
+                .expiration(
+                        new Date(
+                                now.getTime() + 60 * 60 * 1000
+                        )
+                )
+                .signWith(key)
+                .compact();
+    }
 
     private Review createReview(
             Long userId,
             Long recipeId,
             Integer rating,
-            String comment) {
+            String comment
+    ) {
 
         Review review = new Review();
 

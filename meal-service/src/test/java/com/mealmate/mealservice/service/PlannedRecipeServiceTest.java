@@ -90,6 +90,7 @@ class PlannedRecipeServiceTest {
 
         PlannedRecipeResponse result =
                 plannedRecipeService.addRecipeToMeal(
+                        1L,
                         2L,
                         36L,
                         request
@@ -115,6 +116,7 @@ class PlannedRecipeServiceTest {
                 new WeeklyMealPlan();
 
         anotherWeeklyMealPlan.setWeeklyMealPlanId(999L);
+        anotherWeeklyMealPlan.setUserId(1L);
 
         plannedMeal.setWeeklyMealPlan(
                 anotherWeeklyMealPlan
@@ -127,6 +129,7 @@ class PlannedRecipeServiceTest {
                 assertThrows(
                         InvalidMealPlanException.class,
                         () -> plannedRecipeService.addRecipeToMeal(
+                                1L,
                                 2L,
                                 36L,
                                 new AddRecipeToMealRequest(1L, 1)
@@ -135,6 +138,34 @@ class PlannedRecipeServiceTest {
 
         assertEquals(
                 "Planned meal does not belong to this weekly meal plan.",
+                exception.getMessage()
+        );
+
+        verify(plannedRecipeRepository, never())
+                .save(any(PlannedRecipe.class));
+
+        verifyNoInteractions(plannedRecipeMapper);
+    }
+
+    @Test
+    void shouldRejectMealFromAnotherUser() {
+
+        when(plannedMealRepository.findById(36L))
+                .thenReturn(Optional.of(plannedMeal));
+
+        InvalidMealPlanException exception =
+                assertThrows(
+                        InvalidMealPlanException.class,
+                        () -> plannedRecipeService.addRecipeToMeal(
+                                999L,
+                                2L,
+                                36L,
+                                new AddRecipeToMealRequest(1L, 1)
+                        )
+                );
+
+        assertEquals(
+                "You are not allowed to access this weekly meal plan.",
                 exception.getMessage()
         );
 
@@ -158,6 +189,7 @@ class PlannedRecipeServiceTest {
                 assertThrows(
                         RecipeAlreadyAssignedException.class,
                         () -> plannedRecipeService.addRecipeToMeal(
+                                1L,
                                 2L,
                                 36L,
                                 new AddRecipeToMealRequest(1L, 1)
@@ -205,6 +237,7 @@ class PlannedRecipeServiceTest {
 
         PlannedRecipeResponse result =
                 plannedRecipeService.updateRecipeQuantity(
+                        1L,
                         2L,
                         36L,
                         new UpdateRecipeQuantityRequest(3)
@@ -237,6 +270,7 @@ class PlannedRecipeServiceTest {
                 .thenReturn(Optional.of(plannedRecipe));
 
         plannedRecipeService.removeRecipeFromMeal(
+                1L,
                 2L,
                 36L
         );
