@@ -1,11 +1,13 @@
 package com.mealmate.reviewservice.service;
 
 import com.mealmate.reviewservice.client.RecipeClient;
+import com.mealmate.reviewservice.client.UserClient;
 import com.mealmate.reviewservice.dto.CreateReviewRequest;
 import com.mealmate.reviewservice.dto.RecipeResponse;
 import com.mealmate.reviewservice.dto.ReviewResponse;
 import com.mealmate.reviewservice.dto.ReviewSummaryResponse;
 import com.mealmate.reviewservice.dto.UpdateReviewRequest;
+import com.mealmate.reviewservice.dto.UserResponse;
 import com.mealmate.reviewservice.entity.Review;
 import com.mealmate.reviewservice.exception.OwnRecipeReviewException;
 import com.mealmate.reviewservice.exception.ReviewAlreadyExistsException;
@@ -25,6 +27,7 @@ public class ReviewService {
     private final ReviewRepository reviewRepository;
     private final ReviewMapper reviewMapper;
     private final RecipeClient recipeClient;
+    private final UserClient userClient;
 
     public ReviewResponse createReview(
             Long recipeId,
@@ -63,7 +66,7 @@ public class ReviewService {
 
         Review savedReview = reviewRepository.save(review);
 
-        return reviewMapper.toResponse(savedReview);
+        return toReviewResponse(savedReview);
     }
 
     public ReviewResponse getReviewById(Long reviewId) {
@@ -73,7 +76,7 @@ public class ReviewService {
                         "Review not found with id: " + reviewId
                 ));
 
-        return reviewMapper.toResponse(review);
+        return toReviewResponse(review);
     }
 
     public List<ReviewResponse> getReviewsByRecipeId(Long recipeId) {
@@ -81,7 +84,7 @@ public class ReviewService {
         return reviewRepository
                 .findAllByRecipeIdOrderByCreatedAtDesc(recipeId)
                 .stream()
-                .map(reviewMapper::toResponse)
+                .map(this::toReviewResponse)
                 .toList();
     }
 
@@ -146,7 +149,7 @@ public class ReviewService {
 
         Review updatedReview = reviewRepository.save(review);
 
-        return reviewMapper.toResponse(updatedReview);
+        return toReviewResponse(updatedReview);
     }
 
     public void deleteReview(Long reviewId) {
@@ -160,5 +163,23 @@ public class ReviewService {
                 ));
 
         reviewRepository.delete(review);
+    }
+
+    private ReviewResponse toReviewResponse(Review review) {
+
+        ReviewResponse response = reviewMapper.toResponse(review);
+
+        UserResponse user = userClient.getUserById(review.getUserId());
+
+        return new ReviewResponse(
+                response.reviewId(),
+                response.userId(),
+                user.firstName(),
+                response.recipeId(),
+                response.rating(),
+                response.comment(),
+                response.createdAt(),
+                response.updatedAt()
+        );
     }
 }

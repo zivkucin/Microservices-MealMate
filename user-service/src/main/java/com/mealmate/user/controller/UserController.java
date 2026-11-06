@@ -15,6 +15,7 @@ import com.mealmate.user.dto.ChangePasswordRequest;
 import org.springframework.security.core.Authentication;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import com.mealmate.user.dto.PublicUserResponse;
 
 
 @RestController
@@ -112,5 +113,13 @@ public class UserController {
                 request,
                 authentication.getName()
         );
+    }
+
+    @Operation(summary = "Get public user profile")
+    @GetMapping("/{id}/public-profile")
+    public PublicUserResponse getPublicUserProfile(
+            @PathVariable Long id) {
+
+        return userService.getPublicUserProfile(id);
     }
 }

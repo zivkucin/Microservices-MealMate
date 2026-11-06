@@ -210,4 +210,14 @@ public class UserService {
 
         userRepository.save(user);
     }
+
+    public PublicUserResponse getPublicUserProfile(Long id) {
+
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new UserNotFoundException(id));
+
+        return new PublicUserResponse(
+                user.getFirstName()
+        );
+    }
 }

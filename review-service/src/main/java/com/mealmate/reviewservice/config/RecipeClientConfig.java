@@ -12,10 +12,10 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 public class RecipeClientConfig {
 
     @Bean
-    public RestClientHttpServiceGroupConfigurer recipeClientConfigurer() {
+    public RestClientHttpServiceGroupConfigurer httpServiceGroupConfigurer() {
 
         return groups -> groups
-                .filterByName("recipeClient")
+                .filterByName("recipeClient", "userClient")
                 .forEachClient((group, clientBuilder) ->
                         clientBuilder.requestInterceptor(
                                 (request, body, execution) -> {
@@ -25,7 +25,6 @@ public class RecipeClientConfig {
                                                     RequestContextHolder.getRequestAttributes();
 
                                     if (attributes != null) {
-
                                         HttpServletRequest currentRequest =
                                                 attributes.getRequest();
 
